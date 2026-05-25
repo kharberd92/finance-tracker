@@ -1,0 +1,5 @@
+# Home directory is the repo root — ignore everything by default,
+# then whitelist only the project spec/docs we intend to track.
+/*
+!/.gitignore
+!/docs/
