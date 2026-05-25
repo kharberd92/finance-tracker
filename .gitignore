@@ -1,5 +1,8 @@
 # Home directory is the repo root — ignore everything by default,
-# then whitelist only the project spec/docs we intend to track.
+# then whitelist only what we intend to track.
 /*
 !/.gitignore
 !/docs/
+!/finance-tracker/
+finance-tracker/backend/node_modules/
+finance-tracker/backend/.env
