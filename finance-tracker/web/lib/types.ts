@@ -8,7 +8,7 @@ export interface Account {
   current_balance: number
   institution_name: string
   plaid_account_id?: string | null
-  encrypted_plaid_access_token?: string | null
+  item_id?: string | null
 }
 
 export interface Transaction {
@@ -21,6 +21,7 @@ export interface Transaction {
   category: string
   notes?: string | null
   is_manual: boolean
+  plaid_transaction_id?: string | null
 }
 
 export interface Budget {
@@ -52,4 +53,13 @@ export interface Goal {
   target_date?: string | null
   icon: string
   color_hex: string
+}
+
+export interface PlaidItem {
+  id: string
+  user_id: string
+  plaid_item_id: string
+  encrypted_access_token: string
+  sync_cursor?: string | null
+  institution_name: string
 }
