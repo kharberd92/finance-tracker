@@ -91,4 +91,71 @@ describe('POST /api/sync', () => {
       expect.objectContaining({ sync_cursor: 'cursor-final' }),
     )
   })
+
+  it('updates Plaid fields but not category for modified transactions (sticky category)', async () => {
+    const itemsStub = createQueryStub({
+      data: [
+        {
+          id: 'item-1',
+          user_id: 'user-1',
+          plaid_item_id: 'plaid-item-1',
+          encrypted_access_token: encryptToken('access-sandbox-1'),
+          sync_cursor: 'cursor-prev',
+          institution_name: 'Chase',
+        },
+      ],
+      error: null,
+    })
+    const accountsStub = createQueryStub({
+      data: [{ id: 'our-acct-1', plaid_account_id: 'pa-1' }],
+      error: null,
+    })
+    const txStub = createQueryStub()
+
+    mockedCreateClient.mockResolvedValue(
+      createSupabaseMock({
+        tables: { plaid_items: itemsStub, accounts: accountsStub, transactions: txStub },
+      }) as never,
+    )
+
+    mockedCreatePlaid.mockReturnValue({
+      accountsBalanceGet: vi.fn().mockResolvedValue({
+        data: {
+          accounts: [
+            { account_id: 'pa-1', name: 'Checking', type: 'depository', subtype: 'checking', balances: { current: 500 } },
+          ],
+        },
+      }),
+      transactionsSync: vi.fn().mockResolvedValue({
+        data: {
+          added: [],
+          modified: [
+            {
+              transaction_id: 'ptxn-1',
+              account_id: 'pa-1',
+              amount: 40,
+              date: '2026-06-02',
+              name: 'Groceries',
+              merchant_name: 'Trader Joe’s',
+              personal_finance_category: { primary: 'FOOD_AND_DRINK' },
+            },
+          ],
+          removed: [],
+          next_cursor: 'cursor-final',
+          has_more: false,
+        },
+      }),
+    } as never)
+
+    const res = await POST()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ added: 0, modified: 1, removed: 0 })
+
+    // Modified path uses update, not upsert, and the update payload omits category.
+    expect(txStub.update).toHaveBeenCalled()
+    const updatePayload = txStub.update.mock.calls[0][0] as Record<string, unknown>
+    expect(updatePayload).not.toHaveProperty('category')
+    expect(updatePayload).toHaveProperty('amount')
+    expect(txStub.upsert).not.toHaveBeenCalled()
+  })
 })
