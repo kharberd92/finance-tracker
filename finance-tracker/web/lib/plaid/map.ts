@@ -1,4 +1,5 @@
 import type { AccountType } from '@/lib/types'
+import { mapPlaidCategory } from '@/lib/finance/categories'
 
 /** Minimal shape of the Plaid transaction fields we consume. */
 export interface PlaidTxnLike {
@@ -51,16 +52,6 @@ export function mapAccountType(type: string, subtype: string | null): AccountTyp
   return 'checking'
 }
 
-/** Title-cases a Plaid primary category (FOOD_AND_DRINK → Food And Drink). */
-export function titleCaseCategory(primary: string | null | undefined): string {
-  if (!primary) return 'Uncategorized'
-  return primary
-    .toLowerCase()
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
 /**
  * Maps a Plaid transaction to our row. Plaid amounts are positive for outflow;
  * we store negative = expense, so the sign is flipped.
@@ -76,7 +67,7 @@ export function mapTransaction(
     amount: -txn.amount,
     date: txn.date,
     merchant_name: txn.merchant_name ?? txn.name,
-    category: titleCaseCategory(txn.personal_finance_category?.primary),
+    category: mapPlaidCategory(txn.personal_finance_category?.primary),
     plaid_transaction_id: txn.transaction_id,
     is_manual: false,
   }
