@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  mapAccountType,
-  titleCaseCategory,
-  mapTransaction,
-  mapAccount,
-  type PlaidTxnLike,
-  type PlaidAccountLike,
-} from './map'
+import { mapAccountType, mapTransaction, mapAccount, type PlaidTxnLike, type PlaidAccountLike } from './map'
 
 describe('mapAccountType', () => {
   it('maps depository subtypes', () => {
@@ -27,17 +20,6 @@ describe('mapAccountType', () => {
 
   it('defaults unknown types to checking', () => {
     expect(mapAccountType('other', null)).toBe('checking')
-  })
-})
-
-describe('titleCaseCategory', () => {
-  it('title-cases a Plaid primary category', () => {
-    expect(titleCaseCategory('FOOD_AND_DRINK')).toBe('Food And Drink')
-  })
-
-  it('falls back to Uncategorized when absent', () => {
-    expect(titleCaseCategory(null)).toBe('Uncategorized')
-    expect(titleCaseCategory(undefined)).toBe('Uncategorized')
   })
 })
 
@@ -82,6 +64,11 @@ describe('mapTransaction', () => {
     expect(row.plaid_transaction_id).toBe('ptxn-1')
     expect(row.user_id).toBe('user-1')
     expect(row.date).toBe('2026-06-02')
+  })
+
+  it('falls back to Uncategorized when Plaid sends no category', () => {
+    const row = mapTransaction(txn({ personal_finance_category: null }), 'user-1', accountIdByPlaidId)
+    expect(row.category).toBe('Uncategorized')
   })
 })
 

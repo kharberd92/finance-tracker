@@ -59,11 +59,27 @@ export async function POST() {
           } satisfies SyncPage<PlaidTxnLike, PlaidTxnLike>
         },
         async ({ added, modified, removedIds }) => {
-          const upserts = [...added, ...modified].map((t) => mapTransaction(t, user.id, idMap))
-          if (upserts.length > 0) {
+          // New transactions: insert with the mapped Plaid category.
+          if (added.length > 0) {
+            const rows = added.map((t) => mapTransaction(t, user.id, idMap))
             await supabase
               .from('transactions')
-              .upsert(upserts, { onConflict: 'user_id,plaid_transaction_id' })
+              .upsert(rows, { onConflict: 'user_id,plaid_transaction_id' })
+          }
+          // Existing transactions: update Plaid-owned fields but NOT category
+          // (sticky category — preserves the user's re-categorization).
+          for (const t of modified) {
+            const row = mapTransaction(t, user.id, idMap)
+            await supabase
+              .from('transactions')
+              .update({
+                account_id: row.account_id,
+                amount: row.amount,
+                date: row.date,
+                merchant_name: row.merchant_name,
+              })
+              .eq('user_id', user.id)
+              .eq('plaid_transaction_id', row.plaid_transaction_id)
           }
           if (removedIds.length > 0) {
             await supabase
