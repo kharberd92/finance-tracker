@@ -1,10 +1,33 @@
-import { EmptyState } from '@/components/empty-state'
+import { createClient } from '@/lib/supabase/server'
+import { monthBounds } from '@/lib/finance/month'
+import { BudgetsView } from '@/components/budgets/budgets-view'
+import type { Budget, Transaction } from '@/lib/types'
 
-export default function BudgetsPage() {
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+export default async function BudgetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>
+}) {
+  const { month } = await searchParams
+  const ym = month && /^\d{4}-\d{2}$/.test(month) ? month : currentMonth()
+  const { start, end } = monthBounds(ym)
+
+  const supabase = await createClient()
+  const [{ data: budgets }, { data: txns }] = await Promise.all([
+    supabase.from('budgets').select('*').order('category'),
+    supabase.from('transactions').select('*').gte('date', start).lt('date', end),
+  ])
+
   return (
-    <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Budgets</h1>
-      <EmptyState title="No budgets yet" hint="Create a category budget to track your spending." />
-    </section>
+    <BudgetsView
+      month={ym}
+      budgets={(budgets ?? []) as Budget[]}
+      transactions={(txns ?? []) as Transaction[]}
+    />
   )
 }
