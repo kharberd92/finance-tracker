@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { spentThisMonth, budgetRemaining } from './budget'
+import { spentThisMonth, budgetRemaining, budgetStatus } from './budget'
 import type { Transaction } from '@/lib/types'
 
 function txn(partial: Partial<Transaction>): Transaction {
@@ -40,5 +40,25 @@ describe('budgetRemaining', () => {
 
   it('can go negative when over budget', () => {
     expect(budgetRemaining(100, 150)).toBe(-50)
+  })
+})
+
+describe('budgetStatus', () => {
+  it('is under below 80% of the limit', () => {
+    expect(budgetStatus(79, 100)).toBe('under')
+  })
+
+  it('is near from 80% up to and including 100%', () => {
+    expect(budgetStatus(80, 100)).toBe('near')
+    expect(budgetStatus(100, 100)).toBe('near')
+  })
+
+  it('is over above 100%', () => {
+    expect(budgetStatus(101, 100)).toBe('over')
+  })
+
+  it('handles a zero limit', () => {
+    expect(budgetStatus(0, 0)).toBe('under')
+    expect(budgetStatus(5, 0)).toBe('over')
   })
 })
