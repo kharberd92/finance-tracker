@@ -1,10 +1,10 @@
-import { EmptyState } from '@/components/empty-state'
+import { createClient } from '@/lib/supabase/server'
+import { GoalsView } from '@/components/goals/goals-view'
+import type { Goal } from '@/lib/types'
 
-export default function GoalsPage() {
-  return (
-    <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Goals</h1>
-      <EmptyState title="No goals yet" hint="Set a savings goal and track your progress." />
-    </section>
-  )
+export default async function GoalsPage() {
+  const supabase = await createClient()
+  const { data: goals } = await supabase.from('goals').select('*').order('name')
+
+  return <GoalsView goals={(goals ?? []) as Goal[]} />
 }
