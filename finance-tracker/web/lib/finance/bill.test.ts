@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextDueDate, daysUntilDue } from './bill'
+import { nextDueDate, daysUntilDue, mostRecentDueDate, isPaid, monthlyCost } from './bill'
 import type { Bill } from '@/lib/types'
 
 function bill(partial: Partial<Bill>): Bill {
@@ -43,12 +43,6 @@ describe('nextDueDate (weekly)', () => {
   })
 })
 
-describe('nextDueDate (deferred frequencies)', () => {
-  it('returns null for quarterly and yearly (pending schema anchor)', () => {
-    expect(nextDueDate(bill({ frequency: 'quarterly' }), d('2026-06-10'))).toBeNull()
-    expect(nextDueDate(bill({ frequency: 'yearly' }), d('2026-06-10'))).toBeNull()
-  })
-})
 
 describe('daysUntilDue', () => {
   it('counts whole days to the next due date', () => {
@@ -61,5 +55,81 @@ describe('daysUntilDue', () => {
 
   it('returns null when the next due date is undefined', () => {
     expect(daysUntilDue(bill({ frequency: 'yearly' }), d('2026-06-10'))).toBeNull()
+  })
+})
+
+describe('nextDueDate (yearly)', () => {
+  it('returns this year when the month/day is still ahead', () => {
+    const due = nextDueDate(bill({ frequency: 'yearly', due_month: 12, due_day: 25 }), d('2026-06-10'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-12-25')
+  })
+
+  it('rolls to next year when the date has passed', () => {
+    const due = nextDueDate(bill({ frequency: 'yearly', due_month: 3, due_day: 10 }), d('2026-06-10'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2027-03-10')
+  })
+
+  it('clamps the day to the month length', () => {
+    const due = nextDueDate(bill({ frequency: 'yearly', due_month: 2, due_day: 31 }), d('2026-03-01'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2027-02-28')
+  })
+})
+
+describe('nextDueDate (quarterly)', () => {
+  it('returns the soonest anchored quarter on/after the date', () => {
+    const due = nextDueDate(bill({ frequency: 'quarterly', due_month: 1, due_day: 15 }), d('2026-06-10'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-07-15')
+  })
+
+  it('rolls into next year past the last quarter', () => {
+    const due = nextDueDate(bill({ frequency: 'quarterly', due_month: 1, due_day: 15 }), d('2026-10-20'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2027-01-15')
+  })
+})
+
+describe('mostRecentDueDate', () => {
+  it('monthly: the due_day this month when already passed', () => {
+    const due = mostRecentDueDate(bill({ frequency: 'monthly', due_day: 1 }), d('2026-06-15'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-06-01')
+  })
+
+  it('monthly: last month when the due_day is still ahead', () => {
+    const due = mostRecentDueDate(bill({ frequency: 'monthly', due_day: 20 }), d('2026-06-15'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-05-20')
+  })
+
+  it('weekly: the most recent occurrence of the weekday', () => {
+    const due = mostRecentDueDate(bill({ frequency: 'weekly', due_day: 5 }), d('2026-06-10'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-06-05')
+  })
+
+  it('quarterly: the most recent anchored quarter', () => {
+    const due = mostRecentDueDate(bill({ frequency: 'quarterly', due_month: 1, due_day: 15 }), d('2026-06-10'))
+    expect(due?.toISOString().slice(0, 10)).toBe('2026-04-15')
+  })
+})
+
+describe('isPaid', () => {
+  it('is paid when last_paid_date is in the current cycle', () => {
+    const b = bill({ frequency: 'monthly', due_day: 1, last_paid_date: '2026-06-03' })
+    expect(isPaid(b, d('2026-06-15'))).toBe(true)
+  })
+
+  it('auto-resets to unpaid once the next cycle begins', () => {
+    const b = bill({ frequency: 'monthly', due_day: 1, last_paid_date: '2026-06-03' })
+    expect(isPaid(b, d('2026-07-02'))).toBe(false)
+  })
+
+  it('is unpaid when last_paid_date is null', () => {
+    expect(isPaid(bill({ last_paid_date: null }), d('2026-06-15'))).toBe(false)
+  })
+})
+
+describe('monthlyCost', () => {
+  it('normalizes each frequency to a monthly figure', () => {
+    expect(monthlyCost(bill({ frequency: 'weekly', amount: 60 }))).toBe(260)
+    expect(monthlyCost(bill({ frequency: 'monthly', amount: 1200 }))).toBe(1200)
+    expect(monthlyCost(bill({ frequency: 'quarterly', amount: 300 }))).toBe(100)
+    expect(monthlyCost(bill({ frequency: 'yearly', amount: 1200 }))).toBe(100)
   })
 })
