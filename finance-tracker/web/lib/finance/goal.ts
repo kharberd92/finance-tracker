@@ -1,3 +1,5 @@
+import type { Goal } from '@/lib/types'
+
 /** Progress toward a goal as a percent 0–100 (overshoot caps at 100). */
 export function goalProgress(current: number, target: number): number {
   if (target <= 0) return 0
@@ -32,4 +34,14 @@ export function monthlyPaceNeeded(
   if (goalReached(current, target)) return null
   const remaining = target - current
   return remaining / monthsUntil(today, targetDate)
+}
+
+/**
+ * Whole months until the goal is met at a fixed monthly contribution.
+ * 0 if already met; null if the contribution can never complete it.
+ */
+export function monthsToGoal(goal: Goal, monthlyContribution: number): number | null {
+  if (goal.current_amount >= goal.target_amount) return 0
+  if (monthlyContribution <= 0) return null
+  return Math.ceil((goal.target_amount - goal.current_amount) / monthlyContribution)
 }

@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { goalProgress, goalReached, monthlyPaceNeeded } from './goal'
+import { goalProgress, goalReached, monthlyPaceNeeded, monthsToGoal } from './goal'
+import type { Goal } from '@/lib/types'
+
+function goal(partial: Partial<Goal>): Goal {
+  return {
+    id: 'g', user_id: 'u', name: 'Emergency Fund',
+    target_amount: 1000, current_amount: 0,
+    icon: 'piggy', color_hex: '#16a34a', ...partial,
+  }
+}
 
 describe('goalProgress', () => {
   it('is 0 at the start', () => {
@@ -49,5 +58,20 @@ describe('monthlyPaceNeeded', () => {
 
   it('treats a past target date as due now (full remaining)', () => {
     expect(monthlyPaceNeeded(0, 3000, '2026-01-01', '2026-06-21')).toBe(3000)
+  })
+})
+
+describe('monthsToGoal', () => {
+  it('returns months remaining, rounded up', () => {
+    expect(monthsToGoal(goal({ target_amount: 1000, current_amount: 250 }), 100)).toBe(8)
+  })
+
+  it('returns 0 when already met', () => {
+    expect(monthsToGoal(goal({ target_amount: 1000, current_amount: 1000 }), 100)).toBe(0)
+  })
+
+  it('returns null when contribution is 0 or negative (never completes)', () => {
+    expect(monthsToGoal(goal({ target_amount: 1000, current_amount: 0 }), 0)).toBeNull()
+    expect(monthsToGoal(goal({ target_amount: 1000, current_amount: 0 }), -50)).toBeNull()
   })
 })
