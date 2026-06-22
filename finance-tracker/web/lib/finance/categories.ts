@@ -44,3 +44,13 @@ export function mapPlaidCategory(plaidPrimary: string | null | undefined): Categ
 export function isCategory(value: unknown): value is Category {
   return typeof value === 'string' && (CATEGORIES as readonly string[]).includes(value)
 }
+
+/** Categories you can budget — spending only (excludes Income and Transfer). */
+export const SPENDING_CATEGORIES: readonly Category[] = CATEGORIES.filter(
+  (c) => c !== 'Income' && c !== 'Transfer',
+)
+
+/** Type guard: is a string a budgetable spending category? */
+export function isSpendingCategory(value: unknown): value is Category {
+  return isCategory(value) && value !== 'Income' && value !== 'Transfer'
+}

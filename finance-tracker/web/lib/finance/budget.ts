@@ -27,3 +27,11 @@ export function spentThisMonth(
 export function budgetRemaining(monthlyLimit: number, spent: number): number {
   return monthlyLimit - spent
 }
+
+/** Budget health for the UI: 'over' when spend exceeds the limit, 'near' at >=80% of it, else 'under'. */
+export function budgetStatus(spent: number, limit: number): 'under' | 'near' | 'over' {
+  if (limit <= 0) return spent > 0 ? 'over' : 'under'
+  if (spent > limit) return 'over'
+  if (spent >= 0.8 * limit) return 'near'
+  return 'under'
+}
