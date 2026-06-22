@@ -39,9 +39,10 @@ export interface Bill {
   name: string
   amount: number
   due_day: number // monthly/quarterly/yearly: day-of-month 1–31; weekly: day-of-week 0–6 (Sun=0)
+  due_month?: number | null // 1–12 anchor for quarterly/yearly; null/unused otherwise
   frequency: BillFrequency
   category: string
-  is_paid: boolean
+  last_paid_date?: string | null // ISO 'YYYY-MM-DD'; null = unpaid this cycle
 }
 
 export interface Goal {

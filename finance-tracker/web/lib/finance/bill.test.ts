@@ -5,8 +5,8 @@ import type { Bill } from '@/lib/types'
 function bill(partial: Partial<Bill>): Bill {
   return {
     id: 'b', user_id: 'u', name: 'Rent', amount: 1200,
-    due_day: 1, frequency: 'monthly', category: 'Housing',
-    is_paid: false, ...partial,
+    due_day: 1, frequency: 'monthly', category: 'Bills & Utilities',
+    due_month: null, last_paid_date: null, ...partial,
   }
 }
 
