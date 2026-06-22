@@ -95,9 +95,15 @@ git commit -m "feat(web): add goal icon/color presets"
 
 ### Task 2: Goal math helpers (TDD)
 
+> **Correction (post-execution):** `lib/finance/goal.ts` and its test already
+> existed (Plan 3 finance library: `monthsToGoal` + a fraction-based
+> `goalProgress`). These are **Modify**, not Create — preserve `monthsToGoal` and
+> its tests; add `goalReached`/`monthlyPaceNeeded` and redefine `goalProgress` to
+> the 0–100 percent contract.
+
 **Files:**
-- Create: `finance-tracker/web/lib/finance/goal.ts`
-- Create: `finance-tracker/web/lib/finance/goal.test.ts`
+- Modify: `finance-tracker/web/lib/finance/goal.ts` (pre-existing — keep `monthsToGoal`)
+- Modify: `finance-tracker/web/lib/finance/goal.test.ts` (pre-existing — keep `monthsToGoal` tests)
 
 - [ ] **Step 1: Write the failing test**
 

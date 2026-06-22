@@ -55,6 +55,12 @@ Controlled lists, validated server-side (same spirit as `SPENDING_CATEGORIES`):
 
 ## Goal math (`lib/finance/goal.ts`) — pure, unit-tested
 
+> **Note:** `lib/finance/goal.ts` already exists from Plan 3's finance library
+> (it defined `monthsToGoal` and a fraction-based `goalProgress`). 5c **extends**
+> this file: `monthsToGoal` is preserved; `goalProgress` is redefined to the
+> `(current, target) → 0–100` percent contract below (the old unused 0..1 version
+> is replaced); `goalReached` and `monthlyPaceNeeded` are added.
+
 - `goalProgress(current, target): number` — percent `0–100`, **capped at 100**
   (overshoot still reads 100); a non-positive `target` returns `0` (avoids
   divide-by-zero / nonsensical bars).
