@@ -10,6 +10,12 @@ import { ContributionForm } from './contribution-form'
 import type { Goal } from '@/lib/types'
 
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+const monthYear = (isoDate: string) =>
+  new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 
 function todayIso(): string {
   const d = new Date()
@@ -65,7 +71,7 @@ export function GoalsView({ goals }: { goals: Goal[] }) {
                     {reached
                       ? 'Reached 🎉'
                       : pace != null
-                        ? `Save ~${usd(pace)}/mo to reach by ${g.target_date}`
+                        ? `Save ~${usd(pace)}/mo to reach by ${monthYear(g.target_date!)}`
                         : `${usd(remaining)} to go`}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => setContributing(g)}>
@@ -80,6 +86,7 @@ export function GoalsView({ goals }: { goals: Goal[] }) {
 
       {(creating || editing) && (
         <GoalForm
+          key={editing?.id ?? 'new'}
           goal={editing}
           onClose={() => {
             setCreating(false)
