@@ -103,6 +103,7 @@ export function BillsView({ bills }: { bills: Bill[] }) {
 
       {(creating || editing) && (
         <BillForm
+          key={editing?.id ?? 'new'}
           bill={editing}
           onClose={() => {
             setCreating(false)
