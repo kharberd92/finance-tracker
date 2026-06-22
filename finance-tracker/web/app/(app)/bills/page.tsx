@@ -1,10 +1,10 @@
-import { EmptyState } from '@/components/empty-state'
+import { createClient } from '@/lib/supabase/server'
+import { BillsView } from '@/components/bills/bills-view'
+import type { Bill } from '@/lib/types'
 
-export default function BillsPage() {
-  return (
-    <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Bills</h1>
-      <EmptyState title="No bills yet" hint="Add a recurring bill to see what's due and when." />
-    </section>
-  )
+export default async function BillsPage() {
+  const supabase = await createClient()
+  const { data: bills } = await supabase.from('bills').select('*').order('name')
+
+  return <BillsView bills={(bills ?? []) as Bill[]} />
 }
