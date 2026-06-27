@@ -71,9 +71,7 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
             <g key={r.month}>
               <rect x={incomeX} y={y(r.income)} width={BAR} height={Math.max(0, y0 - y(r.income))} className="fill-green-600" />
               <rect x={expenseX} y={y(r.expense)} width={BAR} height={Math.max(0, y0 - y(r.expense))} className="fill-red-600" />
-              <title>
-                {monthLabel(r.month)}: income {usd(r.income)}, expense {usd(r.expense)}, net {usd(r.net)}
-              </title>
+              <title>{`${monthLabel(r.month)}: income ${usd(r.income)}, expense ${usd(r.expense)}, net ${usd(r.net)}`}</title>
               <text x={slotX + SLOT / 2} y={totalH - 6} textAnchor="middle" className="fill-muted-foreground text-[10px]">
                 {monthLabel(r.month)}
               </text>
