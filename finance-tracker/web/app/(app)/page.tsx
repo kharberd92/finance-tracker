@@ -1,12 +1,33 @@
 import { createClient } from '@/lib/supabase/server'
 import { netWorth } from '@/lib/finance/net-worth'
+import { trailingMonths, monthlyCashflow } from '@/lib/finance/cashflow'
 import { Card } from '@/components/ui/card'
-import type { Account } from '@/lib/types'
+import { CashflowSummary } from '@/components/dashboard/cashflow-summary'
+import type { Account, Transaction } from '@/lib/types'
+
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
 
 export default async function DashboardPage() {
+  const month = currentMonth()
+  const months = trailingMonths(month, 12)
+  const windowStart = `${months[0]}-01`
+
   const supabase = await createClient()
-  const { data } = await supabase.from('accounts').select('*')
-  const accounts = (data ?? []) as Account[]
+  const [accountsRes, txnsRes] = await Promise.all([
+    supabase.from('accounts').select('*'),
+    supabase
+      .from('transactions')
+      .select('*')
+      .gte('date', windowStart)
+      .order('date', { ascending: false }),
+  ])
+  const accounts = (accountsRes.data ?? []) as Account[]
+  const transactions = (txnsRes.data ?? []) as Transaction[]
+
+  const rows = monthlyCashflow(transactions, months)
   const total = netWorth(accounts)
 
   return (
@@ -18,17 +39,7 @@ export default async function DashboardPage() {
         </p>
       </Card>
 
-      {/* Widget grid — real widgets land in Plan 5. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {['Spent vs. budget', 'Goals progress', 'Upcoming bills', 'Recent transactions'].map(
-          (label) => (
-            <Card key={label} className="p-6">
-              <p className="font-medium">{label}</p>
-              <p className="mt-1 text-sm text-muted-foreground">Coming soon.</p>
-            </Card>
-          ),
-        )}
-      </div>
+      <CashflowSummary row={rows[rows.length - 1]} />
     </div>
   )
 }
