@@ -3,6 +3,7 @@ import { netWorth } from '@/lib/finance/net-worth'
 import { trailingMonths, monthlyCashflow } from '@/lib/finance/cashflow'
 import { Card } from '@/components/ui/card'
 import { CashflowSummary } from '@/components/dashboard/cashflow-summary'
+import { CashflowChart } from '@/components/dashboard/cashflow-chart'
 import type { Account, Transaction } from '@/lib/types'
 
 function currentMonth(): string {
@@ -40,6 +41,8 @@ export default async function DashboardPage() {
       </Card>
 
       <CashflowSummary row={rows[rows.length - 1]} />
+
+      <CashflowChart rows={rows} />
     </div>
   )
 }
