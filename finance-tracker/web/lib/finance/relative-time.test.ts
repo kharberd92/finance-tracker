@@ -19,4 +19,18 @@ describe('formatRelativeTime', () => {
   it('formats days', () => {
     expect(formatRelativeTime('2026-06-26T12:00:00Z', now)).toBe('2d ago')
   })
+
+  // Boundary cases — pin the strict-less-than operators (sec<60, min<60, hr<24).
+  it('crosses the minute boundary at exactly 60s', () => {
+    expect(formatRelativeTime('2026-06-28T11:59:01Z', now)).toBe('just now') // 59s
+    expect(formatRelativeTime('2026-06-28T11:59:00Z', now)).toBe('1m ago') // 60s
+  })
+  it('crosses the hour boundary at exactly 60m', () => {
+    expect(formatRelativeTime('2026-06-28T11:01:00Z', now)).toBe('59m ago')
+    expect(formatRelativeTime('2026-06-28T11:00:00Z', now)).toBe('1h ago')
+  })
+  it('crosses the day boundary at exactly 24h', () => {
+    expect(formatRelativeTime('2026-06-27T13:00:00Z', now)).toBe('23h ago')
+    expect(formatRelativeTime('2026-06-27T12:00:00Z', now)).toBe('1d ago')
+  })
 })

@@ -92,6 +92,37 @@ describe('POST /api/sync', () => {
     )
   })
 
+  it('returns 502 when the only item fails to sync (no item synced)', async () => {
+    const itemsStub = createQueryStub({
+      data: [
+        {
+          id: 'item-1',
+          user_id: 'user-1',
+          plaid_item_id: 'plaid-item-1',
+          encrypted_access_token: encryptToken('access-sandbox-1'),
+          sync_cursor: null,
+          institution_name: 'Chase',
+        },
+      ],
+      error: null,
+    })
+
+    mockedCreateClient.mockResolvedValue(
+      createSupabaseMock({
+        tables: { plaid_items: itemsStub, accounts: createQueryStub(), transactions: createQueryStub() },
+      }) as never,
+    )
+
+    mockedCreatePlaid.mockReturnValue({
+      // The item's first Plaid call throws, so the item fails and nothing syncs.
+      accountsBalanceGet: vi.fn().mockRejectedValue(new Error('plaid down')),
+      transactionsSync: vi.fn(),
+    } as never)
+
+    const res = await POST()
+    expect(res.status).toBe(502)
+  })
+
   it('updates Plaid fields but not category for modified transactions (sticky category)', async () => {
     const itemsStub = createQueryStub({
       data: [

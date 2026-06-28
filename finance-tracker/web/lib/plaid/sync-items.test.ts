@@ -84,5 +84,35 @@ describe('syncPlaidItems', () => {
 
     expect(result.itemsSynced).toBe(1)
     expect(result.errors).toEqual([{ itemId: 'bad', message: 'plaid down' }])
+    // Positively verify the surviving item actually did its work, rather than
+    // inferring it from the counter alone: the good item's one txn was counted.
+    expect(result.totals).toEqual({ added: 1, modified: 0, removed: 0 })
+  })
+
+  it('sticky category: a modified txn updates Plaid-owned fields but NOT category', async () => {
+    const accountsStub = createQueryStub({ data: [{ id: 'acc-1', plaid_account_id: 'pa-1' }], error: null })
+    const txStub = createQueryStub()
+    const db = createSupabaseMock({ tables: { accounts: accountsStub, transactions: txStub, plaid_items: createQueryStub() } })
+    const client = createPlaidStub()
+    client.transactionsSync.mockResolvedValue({
+      data: {
+        added: [],
+        modified: [
+          { transaction_id: 'tx-1', account_id: 'pa-1', amount: 40, date: '2026-06-20', name: 'Groceries', personal_finance_category: { primary: 'FOOD_AND_DRINK' } },
+        ],
+        removed: [],
+        next_cursor: 'cursor-1',
+        has_more: false,
+      },
+    })
+
+    const result = await syncPlaidItems(db as never, client as never, [makeItem({ user_id: 'user-1' })])
+
+    expect(result.totals).toEqual({ added: 0, modified: 1, removed: 0 })
+    // Modified rows go through update (not upsert) and the payload omits category.
+    expect(txStub.update).toHaveBeenCalled()
+    const updatePayload = txStub.update.mock.calls[0][0] as Record<string, unknown>
+    expect(updatePayload).not.toHaveProperty('category')
+    expect(updatePayload).toHaveProperty('amount')
   })
 })

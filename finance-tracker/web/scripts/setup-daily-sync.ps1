@@ -24,8 +24,11 @@ $logFile = Join-Path $logDir 'daily-sync.log'
 $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
 if (-not $npm) { throw 'npm.cmd not found on PATH.' }
 
+# Inner-quote the npm path so its space (default install: C:\Program Files\nodejs)
+# survives cmd.exe's outer-quote stripping. Without the inner quotes cmd parses
+# 'C:\Program' as the command and the task fails on every run.
 $action = New-ScheduledTaskAction -Execute 'cmd.exe' `
-  -Argument "/c `"$npm run sync:daily >> `"$logFile`" 2>&1`"" `
+  -Argument "/c `"`"$npm`" run sync:daily >> `"$logFile`" 2>&1`"" `
   -WorkingDirectory $webDir
 
 $trigger = New-ScheduledTaskTrigger -Daily -At $Time

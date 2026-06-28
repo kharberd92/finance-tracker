@@ -16,7 +16,17 @@ export async function POST() {
   try {
     const client = createPlaidClient()
     const { data: items } = await supabase.from('plaid_items').select('*')
-    const { totals } = await syncPlaidItems(supabase, client, (items ?? []) as PlaidItem[])
+    const { totals, errors, itemsSynced } = await syncPlaidItems(
+      supabase,
+      client,
+      (items ?? []) as PlaidItem[],
+    )
+    // Preserve the manual endpoint's contract: a hard failure (no item synced
+    // despite errors) is a 502, not a green 200 with empty totals. Per-item
+    // isolation still benefits the headless daily job, which reads `errors`.
+    if (itemsSynced === 0 && errors.length > 0) {
+      return NextResponse.json({ error: 'Failed to sync', errors }, { status: 502 })
+    }
     return NextResponse.json(totals)
   } catch {
     return NextResponse.json({ error: 'Failed to sync' }, { status: 502 })
