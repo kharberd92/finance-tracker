@@ -9,7 +9,7 @@ export function GoalsWidget({ goals }: { goals: Goal[] }) {
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <p className="font-medium">Goals progress</p>
-        <Link href="/goals" className="text-sm text-muted-foreground hover:text-foreground">→</Link>
+        <Link href="/goals" className="text-xs font-medium text-primary hover:underline">View all →</Link>
       </div>
       {goals.length === 0 ? (
         <EmptyState title="No goals yet" hint="Create a savings goal to start tracking." />

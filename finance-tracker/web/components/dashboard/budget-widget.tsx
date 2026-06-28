@@ -23,7 +23,7 @@ export function BudgetWidget({
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <p className="font-medium">Spent vs. budget</p>
-        <Link href="/budgets" className="text-sm text-muted-foreground hover:text-foreground">→</Link>
+        <Link href="/budgets" className="text-xs font-medium text-primary hover:underline">View all →</Link>
       </div>
       {budgets.length === 0 ? (
         <EmptyState title="No budgets yet" hint="Add a category budget to track spending." />
