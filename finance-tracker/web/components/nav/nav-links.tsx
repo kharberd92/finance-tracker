@@ -18,15 +18,18 @@ export function NavLinks() {
     <ul className="flex flex-1 gap-4 text-sm">
       {LINKS.map((l) => {
         const active = l.href === '/' ? pathname === '/' : pathname.startsWith(l.href)
+        // The link owns its vertical padding and a 2px bottom border; -mb-px
+        // makes that border overlap the header's border, so the active
+        // underline sits on the header edge without a padding-coupled offset.
         return (
-          <li key={l.href}>
+          <li key={l.href} className="flex">
             <Link
               href={l.href}
-              className={
+              className={`flex items-center border-b-2 py-4 -mb-px ${
                 active
-                  ? 'relative font-semibold text-foreground after:absolute after:-bottom-[17px] after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }
+                  ? 'border-primary font-semibold text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
             >
               {l.label}
             </Link>
