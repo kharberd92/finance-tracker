@@ -38,7 +38,9 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
   const slotW = (VB_W - PAD * 2) / data.length
   const cx = (i: number) => PAD + slotW * i + slotW / 2
   const netPoints = data.map((r, i) => `${cx(i)},${y(r.net)}`).join(' ')
-  const gridFractions = [0.25, 0.5, 0.75, 1]
+  // Gridlines span the full plot band (top→bottom), so the area below the
+  // zero baseline stays gridded when net goes negative.
+  const gridFractions = [0, 0.25, 0.5, 0.75, 1]
 
   return (
     <Card className="space-y-3 p-4">
@@ -68,7 +70,7 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
         aria-label="Monthly income, expense, and net cashflow"
       >
         {gridFractions.map((f) => {
-          const gy = y0 - f * (y0 - PLOT_TOP)
+          const gy = PLOT_TOP + f * PLOT_H
           return <line key={f} x1={PAD} y1={gy} x2={VB_W - PAD} y2={gy} className="stroke-border/40" strokeWidth={1} />
         })}
         <line x1={PAD} y1={y0} x2={VB_W - PAD} y2={y0} className="stroke-border" strokeWidth={1} />
