@@ -1,5 +1,7 @@
 # Daily Auto-Sync Implementation Plan
 
+> **STATUS: COMPLETE — implemented & merged to `main` 2026-06-28.** All 7 code tasks done (TDD, 141/141 tests green, `tsc`/build clean) and passed a multi-agent adversarial review (7 findings: 5 fixed, 1 declined with reason, 1 covered by the migration step). **Two live-infra verifications remain with the user** (left unchecked below): apply migration `0006`, set `SUPABASE_SERVICE_ROLE_KEY`, then run the `sync:daily` smoke test (Task 5 Step 5) and register the scheduled task (Task 7 Step 3).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add an autonomous once-a-day Plaid sync that runs via Windows Task Scheduler with no Next server and no user session, reusing the existing sync logic.
@@ -53,7 +55,7 @@
 **Interfaces:**
 - Produces: `PlaidItem.last_synced_at?: string | null`; a `plaid_items.last_synced_at timestamptz` column.
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 Create `supabase/migrations/0006_plaid_last_synced.sql`:
 
@@ -64,7 +66,7 @@ alter table plaid_items
   add column if not exists last_synced_at timestamptz;
 ```
 
-- [ ] **Step 2: Add the field to the `PlaidItem` type**
+- [x] **Step 2: Add the field to the `PlaidItem` type**
 
 In `lib/types.ts`, change the `PlaidItem` interface from:
 
@@ -93,12 +95,12 @@ export interface PlaidItem {
 }
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/migrations/0006_plaid_last_synced.sql lib/types.ts
@@ -127,7 +129,7 @@ Extracts the per-item loop currently inline in `app/api/sync/route.ts` into a re
   function syncPlaidItems(db: SupabaseClient, client: PlaidApi, items: PlaidItem[]): Promise<SyncResult>
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/plaid/sync-items.test.ts`:
 
@@ -222,12 +224,12 @@ describe('syncPlaidItems', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/plaid/sync-items.test.ts`
 Expected: FAIL — `syncPlaidItems` is not defined / module not found.
 
-- [ ] **Step 3: Implement the module**
+- [x] **Step 3: Implement the module**
 
 Create `lib/plaid/sync-items.ts`:
 
@@ -344,12 +346,12 @@ export async function syncPlaidItems(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run lib/plaid/sync-items.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/plaid/sync-items.ts lib/plaid/sync-items.test.ts
@@ -368,7 +370,7 @@ git commit -m "feat(web): extract reusable per-item Plaid sync (sync-items)"
 - Consumes: `syncPlaidItems` (Task 2).
 - Produces: unchanged HTTP contract — 401 unauth, `{ added, modified, removed }` on success, 502 on hard failure.
 
-- [ ] **Step 1: Replace the route body with delegation**
+- [x] **Step 1: Replace the route body with delegation**
 
 Replace the entire contents of `app/api/sync/route.ts` with:
 
@@ -399,22 +401,22 @@ export async function POST() {
 }
 ```
 
-- [ ] **Step 2: Run the existing route test**
+- [x] **Step 2: Run the existing route test**
 
 Run: `npx vitest run app/api/sync/route.test.ts`
 Expected: the 401 test passes. The "syncs one item" test likely still passes (same DB/Plaid mocks, identical behavior). **If it fails only because the `plaid_items` update assertion now also includes `last_synced_at`,** update that assertion in `app/api/sync/route.test.ts` to use `expect.objectContaining({ sync_cursor: <expected> })` (so it ignores the added `last_synced_at` field). Do not weaken any other assertion.
 
-- [ ] **Step 3: Re-run to confirm green**
+- [x] **Step 3: Re-run to confirm green**
 
 Run: `npx vitest run app/api/sync/route.test.ts`
 Expected: PASS (all cases).
 
-- [ ] **Step 4: Full typecheck + suite**
+- [x] **Step 4: Full typecheck + suite**
 
 Run: `npx tsc --noEmit && npx vitest run`
 Expected: clean + all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/api/sync/route.ts app/api/sync/route.test.ts
@@ -434,7 +436,7 @@ git commit -m "refactor(web): manual sync route delegates to syncPlaidItems"
 - Consumes: `createClient` from `@supabase/supabase-js`.
 - Produces: `createAdminClient(): SupabaseClient` (service-role; used by the script and any future cron).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/supabase/admin.test.ts`:
 
@@ -464,12 +466,12 @@ describe('createAdminClient', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/supabase/admin.test.ts`
 Expected: FAIL — `./admin` not found.
 
-- [ ] **Step 3: Implement the admin client**
+- [x] **Step 3: Implement the admin client**
 
 Create `lib/supabase/admin.ts`:
 
@@ -490,12 +492,12 @@ export function createAdminClient() {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run lib/supabase/admin.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Document the new env var**
+- [x] **Step 5: Document the new env var**
 
 In `.env.local.example`, add this line after the existing Supabase keys:
 
@@ -504,7 +506,7 @@ In `.env.local.example`, add this line after the existing Supabase keys:
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/supabase/admin.ts lib/supabase/admin.test.ts .env.local.example
@@ -525,12 +527,12 @@ git commit -m "feat(web): add service-role Supabase admin client"
 - Consumes: `createAdminClient` (Task 4), `createPlaidClient` (`lib/plaid/client.ts`), `syncPlaidItems` (Task 2), `PlaidItem` (`lib/types.ts`).
 - Produces: an executable entry point + an `npm run sync:daily` command.
 
-- [ ] **Step 1: Install `tsx` as a dev dependency**
+- [x] **Step 1: Install `tsx` as a dev dependency**
 
 Run: `npm install -D tsx`
 Expected: `tsx` appears under `devDependencies` in `package.json`.
 
-- [ ] **Step 2: Add the npm script**
+- [x] **Step 2: Add the npm script**
 
 In `package.json` `"scripts"`, add:
 
@@ -538,7 +540,7 @@ In `package.json` `"scripts"`, add:
 "sync:daily": "node --env-file=.env.local --import tsx scripts/daily-sync.ts"
 ```
 
-- [ ] **Step 3: Write the script**
+- [x] **Step 3: Write the script**
 
 Create `scripts/daily-sync.ts`:
 
@@ -574,18 +576,18 @@ main().catch((e) => {
 })
 ```
 
-- [ ] **Step 4: Verify it typechecks**
+- [x] **Step 4: Verify it typechecks**
 
 Run: `npx tsc --noEmit`
 Expected: no errors. If `scripts/daily-sync.ts` is not picked up by `tsconfig.json`'s `include`, add `"scripts/**/*.ts"` to the `include` array (the Next default usually globs `**/*.ts`, so this is often already covered — only add if tsc reports the file is not type-checked or `@/` fails to resolve).
 
-- [ ] **Step 5: Manual smoke test (Plaid sandbox)**
+- [ ] **Step 5: Manual smoke test (Plaid sandbox)** — _PENDING: requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` + the `0006` migration applied. Not yet run._
 
 Prereq: `.env.local` has `SUPABASE_SERVICE_ROLE_KEY` and Plaid sandbox creds, the `0006` migration is applied, and at least one item is linked (sandbox `user_good`/`pass_good`).
 Run: `npm run sync:daily`
 Expected: a `[daily-sync] items synced: …` line, exit code 0; in Supabase, the synced item's `last_synced_at` is now set to a recent timestamp. Record the output in your report.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/daily-sync.ts package.json package-lock.json
@@ -604,7 +606,7 @@ git commit -m "feat(web): add daily-sync script and sync:daily command"
 **Interfaces:**
 - Produces: `formatRelativeTime(iso: string | null, now: Date): string`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/finance/relative-time.test.ts`:
 
@@ -633,12 +635,12 @@ describe('formatRelativeTime', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/finance/relative-time.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Create `lib/finance/relative-time.ts`:
 
@@ -658,12 +660,12 @@ export function formatRelativeTime(iso: string | null, now: Date): string {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run lib/finance/relative-time.test.ts`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Render the label on the accounts page**
+- [x] **Step 5: Render the label on the accounts page**
 
 In `app/(app)/accounts/page.tsx`, add the import:
 
@@ -702,12 +704,12 @@ with:
         </div>
 ```
 
-- [ ] **Step 6: Typecheck + build + suite**
+- [x] **Step 6: Typecheck + build + suite**
 
 Run: `npx tsc --noEmit && npm run build && npx vitest run`
 Expected: clean, build succeeds, all tests green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/finance/relative-time.ts lib/finance/relative-time.test.ts "app/(app)/accounts/page.tsx"
@@ -726,7 +728,7 @@ git commit -m "feat(web): show last-synced time on the accounts page"
 - Consumes: the `sync:daily` npm script (Task 5).
 - Produces: a registered Windows Task Scheduler job named `FinanceTrackerDailySync`.
 
-- [ ] **Step 1: Write the setup script**
+- [x] **Step 1: Write the setup script**
 
 Create `scripts/setup-daily-sync.ps1`:
 
@@ -775,20 +777,20 @@ Write-Host "Logs: $logFile"
 Write-Host "Test it now with:  Start-ScheduledTask -TaskName '$TaskName'"
 ```
 
-- [ ] **Step 2: Ignore the log output**
+- [x] **Step 2: Ignore the log output**
 
 Confirm the log file won't be committed. Run: `git check-ignore finance-tracker/web/logs/daily-sync.log && echo IGNORED || echo NOT-IGNORED`
 - If it prints `NOT-IGNORED`, add a `finance-tracker/web/.gitignore` entry (or append to the existing one): a line `logs/`.
 - If it prints `IGNORED`, do nothing.
 
-- [ ] **Step 3: Manual verification**
+- [ ] **Step 3: Manual verification** — _PENDING: requires an elevated PowerShell + working `.env.local`. Not yet run._
 
 From an elevated PowerShell in `finance-tracker/web`:
 Run: `pwsh -File scripts/setup-daily-sync.ps1 -Time 06:00`
 Expected: "Registered task 'FinanceTrackerDailySync'…". Then:
 Run: `Start-ScheduledTask -TaskName 'FinanceTrackerDailySync'` and after a few seconds check `logs/daily-sync.log` shows a `[daily-sync] items synced: …` line. Record this in your report.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/setup-daily-sync.ps1
