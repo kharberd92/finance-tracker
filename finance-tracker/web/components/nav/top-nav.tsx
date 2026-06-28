@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { signOut } from '@/app/auth/actions'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/nav/theme-toggle'
 
 const LINKS = [
   { href: '/', label: 'Dashboard' },
@@ -28,6 +29,7 @@ export function TopNav() {
         <Link href="/settings" className="text-sm text-muted-foreground hover:text-foreground">
           Settings
         </Link>
+        <ThemeToggle />
         <form action={signOut}>
           <Button type="submit" variant="outline" size="sm">
             Sign out
