@@ -26,7 +26,7 @@ export function BillsWidget({ bills, now }: { bills: Bill[]; now: Date }) {
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <p className="font-medium">Upcoming bills</p>
-        <Link href="/bills" className="text-sm text-muted-foreground hover:text-foreground">→</Link>
+        <Link href="/bills" className="text-xs font-medium text-primary hover:underline">View all →</Link>
       </div>
       {upcoming.length === 0 ? (
         <EmptyState title="No upcoming bills" hint="Add recurring bills to see what's due." />

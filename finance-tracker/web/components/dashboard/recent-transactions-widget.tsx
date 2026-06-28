@@ -13,7 +13,7 @@ export function RecentTransactionsWidget({ transactions }: { transactions: Trans
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <p className="font-medium">Recent transactions</p>
-        <Link href="/transactions" className="text-sm text-muted-foreground hover:text-foreground">→</Link>
+        <Link href="/transactions" className="text-xs font-medium text-primary hover:underline">View all →</Link>
       </div>
       {recent.length === 0 ? (
         <EmptyState title="No transactions yet" hint="Connect a bank or add one manually." />
@@ -23,7 +23,7 @@ export function RecentTransactionsWidget({ transactions }: { transactions: Trans
             <li key={t.id} className="flex justify-between text-sm">
               <span className="truncate">{t.merchant_name}</span>
               <span className="flex shrink-0 gap-2">
-                <span className={t.amount < 0 ? 'text-red-600' : 'text-green-600'}>{usd(t.amount)}</span>
+                <span className={`tabular-nums ${t.amount < 0 ? 'text-expense' : 'text-income'}`}>{usd(t.amount)}</span>
                 <span className="text-muted-foreground">{t.date.slice(5)}</span>
               </span>
             </li>

@@ -84,7 +84,7 @@ export function BillsView({ bills }: { bills: Bill[] }) {
                     <div className="flex items-center gap-2">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs ${
-                          paid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          paid ? 'bg-income/15 text-income' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                         }`}
                       >
                         {paid ? 'Paid' : 'Due'}
