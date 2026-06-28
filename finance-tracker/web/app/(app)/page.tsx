@@ -47,7 +47,8 @@ export default async function DashboardPage() {
   const [year, mon] = month.split('-').map(Number)
 
   const lastNet = rows[rows.length - 1]?.net ?? 0
-  const netLabel = lastNet >= 0 ? `▲ this month +${usd(lastNet)}` : `▼ this month ${usd(lastNet)}`
+  const netLabel =
+    lastNet >= 0 ? `▲ this month +${usd(lastNet)}` : `▼ this month ${usd(Math.abs(lastNet))}`
 
   return (
     <div className="space-y-4">

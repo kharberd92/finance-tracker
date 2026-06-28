@@ -51,7 +51,7 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
               type="button"
               onClick={() => setSpan(s)}
               className={`rounded-md px-2.5 py-1 font-medium transition ${
-                span === s ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'
+                span === s ? 'bg-accent-soft text-accent-soft-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
               {s}M
@@ -78,9 +78,9 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
           const expenseX = cx(i) + BAR_GAP / 2
           return (
             <g key={r.month}>
+              <title>{`${monthLabel(r.month)}: income ${usd(r.income)}, expense ${usd(r.expense)}, net ${usd(r.net)}`}</title>
               <rect x={incomeX} y={y(r.income)} width={BAR_W} height={Math.max(0, y0 - y(r.income))} rx={3} className="fill-income" />
               <rect x={expenseX} y={y(r.expense)} width={BAR_W} height={Math.max(0, y0 - y(r.expense))} rx={3} className="fill-expense" />
-              <title>{`${monthLabel(r.month)}: income ${usd(r.income)}, expense ${usd(r.expense)}, net ${usd(r.net)}`}</title>
               <text x={cx(i)} y={LABEL_Y} textAnchor="middle" className="fill-muted-foreground text-[11px]">
                 {monthLabel(r.month)}
               </text>
@@ -88,7 +88,7 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
           )
         })}
 
-        <g className="text-primary">
+        <g className="text-net">
           <polyline points={netPoints} fill="none" stroke="currentColor" strokeWidth={2.5} />
           {data.map((r, i) => (
             <circle key={r.month} cx={cx(i)} cy={y(r.net)} r={3.5} fill="currentColor" />
@@ -104,7 +104,7 @@ export function CashflowChart({ rows }: { rows: CashflowMonth[] }) {
           <span className="inline-block h-2 w-2 rounded-sm bg-expense" /> Expense
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-px w-3 bg-primary" /> Net
+          <span className="inline-block h-px w-3 bg-net" /> Net
         </span>
       </div>
     </Card>
