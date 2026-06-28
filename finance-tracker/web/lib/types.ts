@@ -63,4 +63,5 @@ export interface PlaidItem {
   encrypted_access_token: string
   sync_cursor?: string | null
   institution_name: string
+  last_synced_at?: string | null
 }
