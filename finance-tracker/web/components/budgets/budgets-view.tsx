@@ -11,9 +11,9 @@ import { BudgetForm } from './budget-form'
 import type { Budget, Transaction } from '@/lib/types'
 
 const STATUS_BAR: Record<'under' | 'near' | 'over', string> = {
-  under: 'bg-green-600',
+  under: 'bg-income',
   near: 'bg-amber-500',
-  over: 'bg-red-600',
+  over: 'bg-expense',
 }
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -77,7 +77,7 @@ export function BudgetsView({
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                   <div className={`h-full ${STATUS_BAR[status]}`} style={{ width: `${pct}%` }} />
                 </div>
-                <p className={`text-xs ${status === 'over' ? 'text-red-600' : 'text-muted-foreground'}`}>
+                <p className={`text-xs ${status === 'over' ? 'text-expense' : 'text-muted-foreground'}`}>
                   {remaining >= 0 ? `${usd(remaining)} left` : `${usd(-remaining)} over`}
                 </p>
               </Card>

@@ -126,7 +126,7 @@ export function TransactionsView({
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{t.category}</span>
                 <span
                   className={
-                    t.amount < 0 ? 'font-semibold text-red-600' : 'font-semibold text-green-600'
+                    t.amount < 0 ? 'font-semibold tabular-nums text-expense' : 'font-semibold tabular-nums text-income'
                   }
                 >
                   {t.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}

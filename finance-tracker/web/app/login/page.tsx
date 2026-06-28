@@ -35,7 +35,7 @@ export default function LoginPage() {
               aria-label="Email address"
             />
             {state.error && (
-              <p className="text-sm text-red-600" role="alert">
+              <p className="text-sm text-destructive" role="alert">
                 {state.error}
               </p>
             )}
