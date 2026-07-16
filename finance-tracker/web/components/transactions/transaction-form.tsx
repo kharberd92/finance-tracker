@@ -1,16 +1,19 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { CATEGORIES } from '@/lib/finance/categories'
+import { splitTotal, splitsMatchParent } from '@/lib/finance/split'
 import {
   saveManualTransaction,
   updateTransactionCategory,
   deleteManualTransaction,
+  saveTransactionSplits,
+  removeTransactionSplits,
   type ActionState,
 } from '@/app/(app)/transactions/actions'
 import type { Account, Transaction, TransactionSplit } from '@/lib/types'
@@ -29,7 +32,6 @@ export function TransactionForm({
   splits: TransactionSplit[]
   onClose: () => void
 }) {
-  void splits
   const router = useRouter()
   const isManual = transaction ? transaction.is_manual : true
   const [state, formAction, pending] = useActionState(
@@ -57,6 +59,62 @@ export function TransactionForm({
       toast.error(res.error)
     } else {
       toast.success('Transaction deleted')
+      router.refresh()
+      onClose()
+    }
+  }
+
+  type Part = { category: string; amount: string }
+  const [parts, setParts] = useState<Part[]>(
+    splits.length > 0
+      ? splits.map((s) => ({ category: s.category, amount: String(Math.abs(s.amount)) }))
+      : [
+          { category: 'Groceries', amount: '' },
+          { category: 'Shopping', amount: '' },
+        ],
+  )
+  const [splitOpen, setSplitOpen] = useState(splits.length > 0)
+
+  const partAmounts = parts.map((p) => ({ amount: Number(p.amount) || 0 }))
+  const allocated = splitTotal(partAmounts)
+  const parentMagnitude = t ? Math.abs(t.amount) : 0
+  const splitsBalance = t ? splitsMatchParent(t.amount, partAmounts) : false
+
+  function updatePart(i: number, patch: Partial<Part>) {
+    setParts((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
+  }
+  function addPart() {
+    setParts((prev) => [...prev, { category: 'Uncategorized', amount: '' }])
+  }
+  function removePart(i: number) {
+    setParts((prev) => prev.filter((_, idx) => idx !== i))
+  }
+
+  async function handleSaveSplits() {
+    if (!t) return
+    const form = new FormData()
+    form.set('id', t.id)
+    form.set(
+      'splits',
+      JSON.stringify(parts.map((p) => ({ category: p.category, amount: Number(p.amount) || 0 }))),
+    )
+    const res = await saveTransactionSplits({}, form)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success('Split saved')
+      router.refresh()
+      onClose()
+    }
+  }
+
+  async function handleRemoveSplits() {
+    if (!t) return
+    const res = await removeTransactionSplits(t.id)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success('Split removed')
       router.refresh()
       onClose()
     }
@@ -153,6 +211,78 @@ export function TransactionForm({
             <p className="text-sm text-destructive" role="alert">
               {state.error}
             </p>
+          )}
+
+          {t && (
+            <div className="rounded-md border border-input p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Split transaction</span>
+                {!splitOpen && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSplitOpen(true)}>
+                    {splits.length > 0 ? 'Edit split' : 'Split'}
+                  </Button>
+                )}
+              </div>
+
+              {splitOpen && (
+                <div className="mt-3 space-y-2">
+                  {parts.map((p, i) => (
+                    <div key={i} className="flex gap-2">
+                      <select
+                        aria-label={`Split ${i + 1} category`}
+                        className={fieldClass}
+                        value={p.category}
+                        onChange={(e) => updatePart(i, { category: e.target.value })}
+                      >
+                        {CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                      <Input
+                        aria-label={`Split ${i + 1} amount`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="w-28"
+                        value={p.amount}
+                        onChange={(e) => updatePart(i, { amount: e.target.value })}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removePart(i)}
+                        disabled={parts.length <= 2}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ))}
+
+                  <Button type="button" variant="outline" size="sm" onClick={addPart}>
+                    + Add split
+                  </Button>
+
+                  <p className={`text-xs ${splitsBalance ? 'text-muted-foreground' : 'text-destructive'}`}>
+                    Allocated {allocated.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} of{' '}
+                    {parentMagnitude.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                  </p>
+
+                  <div className="flex gap-2">
+                    <Button type="button" onClick={handleSaveSplits} disabled={!splitsBalance}>
+                      Save split
+                    </Button>
+                    {splits.length > 0 && (
+                      <Button type="button" variant="destructive" onClick={handleRemoveSplits}>
+                        Remove split
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex items-center justify-between gap-2">
