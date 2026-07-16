@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { CATEGORIES } from '@/lib/finance/categories'
+import { CATEGORIES, SPLIT_CATEGORY } from '@/lib/finance/categories'
 import { splitTotal, splitsMatchParent } from '@/lib/finance/split'
 import {
   saveManualTransaction,
@@ -51,6 +51,7 @@ export function TransactionForm({
 
   const t = transaction
   const defaultType = t ? (t.amount < 0 ? 'expense' : 'income') : 'expense'
+  const isSplit = !!t && (splits.length > 0 || t.category === SPLIT_CATEGORY)
 
   async function handleDelete() {
     if (!t) return
@@ -96,7 +97,9 @@ export function TransactionForm({
     form.set('id', t.id)
     form.set(
       'splits',
-      JSON.stringify(parts.map((p) => ({ category: p.category, amount: Number(p.amount) || 0 }))),
+      JSON.stringify(
+        parts.map((p) => ({ category: p.category, amount: Math.abs(Number(p.amount)) || 0 })),
+      ),
     )
     const res = await saveTransactionSplits({}, form)
     if (res.error) {
@@ -137,16 +140,26 @@ export function TransactionForm({
             <>
               <div>
                 <label className="text-sm">Date</label>
-                <Input type="date" name="date" defaultValue={t?.date ?? ''} required />
+                <Input type="date" name="date" defaultValue={t?.date ?? ''} required disabled={isSplit} />
               </div>
               <div>
                 <label className="text-sm">Merchant</label>
-                <Input name="merchant_name" defaultValue={t?.merchant_name ?? ''} required />
+                <Input
+                  name="merchant_name"
+                  defaultValue={t?.merchant_name ?? ''}
+                  required
+                  disabled={isSplit}
+                />
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="text-sm">Type</label>
-                  <select name="type" defaultValue={defaultType} className={fieldClass}>
+                  <select
+                    name="type"
+                    defaultValue={defaultType}
+                    className={fieldClass}
+                    disabled={isSplit}
+                  >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
                   </select>
@@ -160,12 +173,18 @@ export function TransactionForm({
                     min="0"
                     defaultValue={t ? Math.abs(t.amount) : ''}
                     required
+                    disabled={isSplit}
                   />
                 </div>
               </div>
               <div>
                 <label className="text-sm">Account (optional)</label>
-                <select name="account_id" defaultValue={t?.account_id ?? ''} className={fieldClass}>
+                <select
+                  name="account_id"
+                  defaultValue={t?.account_id ?? ''}
+                  className={fieldClass}
+                  disabled={isSplit}
+                >
                   <option value="">No account</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -186,16 +205,22 @@ export function TransactionForm({
             </div>
           )}
 
-          <div>
-            <label className="text-sm">Category</label>
-            <select name="category" defaultValue={t?.category ?? 'Uncategorized'} className={fieldClass}>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isSplit ? (
+            <p className="text-xs text-muted-foreground">
+              Category is managed by the split below. Remove the split to edit other fields.
+            </p>
+          ) : (
+            <div>
+              <label className="text-sm">Category</label>
+              <select name="category" defaultValue={t?.category ?? 'Uncategorized'} className={fieldClass}>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="text-sm">Notes</label>
@@ -204,6 +229,7 @@ export function TransactionForm({
               defaultValue={t?.notes ?? ''}
               rows={2}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={isSplit}
             />
           </div>
 
@@ -297,9 +323,11 @@ export function TransactionForm({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? 'Saving…' : 'Save'}
-              </Button>
+              {!isSplit && (
+                <Button type="submit" disabled={pending}>
+                  {pending ? 'Saving…' : 'Save'}
+                </Button>
+              )}
             </div>
           </div>
         </form>
