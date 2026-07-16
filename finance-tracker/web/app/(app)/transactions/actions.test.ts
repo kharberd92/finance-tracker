@@ -7,6 +7,8 @@ import {
   saveManualTransaction,
   updateTransactionCategory,
   deleteManualTransaction,
+  saveTransactionSplits,
+  removeTransactionSplits,
 } from './actions'
 import { createClient } from '@/lib/supabase/server'
 import { createSupabaseMock, createQueryStub } from '@/lib/plaid/test-helpers'
@@ -102,5 +104,70 @@ describe('deleteManualTransaction', () => {
     expect(res.success).toBe(true)
     expect(txns.delete).toHaveBeenCalled()
     expect(txns.eq).toHaveBeenCalledWith('is_manual', true)
+  })
+})
+
+const TXN_ID = '11111111-1111-1111-1111-111111111111'
+
+describe('saveTransactionSplits', () => {
+  it('rejects fewer than two parts', async () => {
+    mockedCreateClient.mockResolvedValue(createSupabaseMock() as never)
+    const res = await saveTransactionSplits(
+      {},
+      fd({ id: TXN_ID, splits: JSON.stringify([{ category: 'Groceries', amount: 100 }]) }),
+    )
+    expect(res.error).toBeTruthy()
+  })
+
+  it('rejects a part with an invalid category', async () => {
+    mockedCreateClient.mockResolvedValue(createSupabaseMock() as never)
+    const res = await saveTransactionSplits(
+      {},
+      fd({ id: TXN_ID, splits: JSON.stringify([{ category: 'Bogus', amount: 60 }, { category: 'Shopping', amount: 40 }]) }),
+    )
+    expect(res.error).toBeTruthy()
+  })
+
+  it('rejects parts that do not sum to the parent amount', async () => {
+    const txns = createQueryStub({ data: { amount: -100 }, error: null })
+    mockedCreateClient.mockResolvedValue(createSupabaseMock({ tables: { transactions: txns } }) as never)
+    const res = await saveTransactionSplits(
+      {},
+      fd({ id: TXN_ID, splits: JSON.stringify([{ category: 'Groceries', amount: 60 }, { category: 'Shopping', amount: 30 }]) }),
+    )
+    expect(res.error).toBeTruthy()
+  })
+
+  it('signs parts to the parent sign, inserts them, and flags the parent as Split', async () => {
+    const txns = createQueryStub({ data: { amount: -100 }, error: null })
+    const splits = createQueryStub()
+    mockedCreateClient.mockResolvedValue(
+      createSupabaseMock({ tables: { transactions: txns, transaction_splits: splits } }) as never,
+    )
+    const res = await saveTransactionSplits(
+      {},
+      fd({ id: TXN_ID, splits: JSON.stringify([{ category: 'Groceries', amount: 60 }, { category: 'Shopping', amount: 40 }]) }),
+    )
+    expect(res.success).toBe(true)
+    expect(splits.delete).toHaveBeenCalled()
+    const inserted = splits.insert.mock.calls[0][0] as Array<Record<string, unknown>>
+    expect(inserted).toHaveLength(2)
+    expect(inserted[0]).toMatchObject({ transaction_id: TXN_ID, category: 'Groceries', amount: -60 })
+    expect(inserted[1]).toMatchObject({ category: 'Shopping', amount: -40 })
+    expect(txns.update).toHaveBeenCalledWith({ category: 'Split' })
+  })
+})
+
+describe('removeTransactionSplits', () => {
+  it('deletes the parts and reverts the parent to Uncategorized', async () => {
+    const txns = createQueryStub()
+    const splits = createQueryStub()
+    mockedCreateClient.mockResolvedValue(
+      createSupabaseMock({ tables: { transactions: txns, transaction_splits: splits } }) as never,
+    )
+    const res = await removeTransactionSplits(TXN_ID)
+    expect(res.success).toBe(true)
+    expect(splits.delete).toHaveBeenCalled()
+    expect(txns.update).toHaveBeenCalledWith({ category: 'Uncategorized' })
   })
 })
