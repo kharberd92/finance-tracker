@@ -8,6 +8,8 @@ import { BudgetWidget } from '@/components/dashboard/budget-widget'
 import { GoalsWidget } from '@/components/dashboard/goals-widget'
 import { BillsWidget } from '@/components/dashboard/bills-widget'
 import { RecentTransactionsWidget } from '@/components/dashboard/recent-transactions-widget'
+import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
+import { explodeSplits } from '@/lib/finance/split'
 import type { Account, Transaction, Budget, Bill, Goal } from '@/lib/types'
 
 function currentMonth(): string {
@@ -41,7 +43,10 @@ export default async function DashboardPage() {
   const bills = (billsRes.data ?? []) as Bill[]
   const goals = (goalsRes.data ?? []) as Goal[]
 
-  const rows = monthlyCashflow(transactions, months)
+  const splits = await fetchSplitsFor(supabase, transactions.map((t) => t.id))
+  const exploded = explodeSplits(transactions, splits)
+
+  const rows = monthlyCashflow(exploded, months)
   const total = netWorth(accounts)
   const now = new Date()
   const [year, mon] = month.split('-').map(Number)
@@ -73,7 +78,7 @@ export default async function DashboardPage() {
       <CashflowChart rows={rows} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <BudgetWidget budgets={budgets} transactions={transactions} year={year} month={mon} />
+        <BudgetWidget budgets={budgets} transactions={exploded} year={year} month={mon} />
         <GoalsWidget goals={goals} />
         <BillsWidget bills={bills} now={now} />
         <RecentTransactionsWidget transactions={transactions} />

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { monthBounds } from '@/lib/finance/month'
 import { BudgetsView } from '@/components/budgets/budgets-view'
+import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
+import { explodeSplits } from '@/lib/finance/split'
 import type { Budget, Transaction } from '@/lib/types'
 
 function currentMonth(): string {
@@ -23,11 +25,15 @@ export default async function BudgetsPage({
     supabase.from('transactions').select('*').gte('date', start).lt('date', end),
   ])
 
+  const transactions = (txns ?? []) as Transaction[]
+  const splits = await fetchSplitsFor(supabase, transactions.map((t) => t.id))
+  const exploded = explodeSplits(transactions, splits)
+
   return (
     <BudgetsView
       month={ym}
       budgets={(budgets ?? []) as Budget[]}
-      transactions={(txns ?? []) as Transaction[]}
+      transactions={exploded}
     />
   )
 }
