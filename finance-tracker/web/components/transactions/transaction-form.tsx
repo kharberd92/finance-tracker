@@ -13,7 +13,7 @@ import {
   deleteManualTransaction,
   type ActionState,
 } from '@/app/(app)/transactions/actions'
-import type { Account, Transaction } from '@/lib/types'
+import type { Account, Transaction, TransactionSplit } from '@/lib/types'
 
 const initial: ActionState = {}
 const fieldClass = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
@@ -21,12 +21,15 @@ const fieldClass = 'h-9 w-full rounded-md border border-input bg-background px-3
 export function TransactionForm({
   accounts,
   transaction,
+  splits,
   onClose,
 }: {
   accounts: Account[]
   transaction: Transaction | null
+  splits: TransactionSplit[]
   onClose: () => void
 }) {
+  void splits
   const router = useRouter()
   const isManual = transaction ? transaction.is_manual : true
   const [state, formAction, pending] = useActionState(
