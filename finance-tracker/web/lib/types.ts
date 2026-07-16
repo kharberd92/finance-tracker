@@ -24,6 +24,14 @@ export interface Transaction {
   plaid_transaction_id?: string | null
 }
 
+export interface TransactionSplit {
+  id: string
+  user_id: string
+  transaction_id: string
+  category: string
+  amount: number // same sign as parent (negative = expense)
+}
+
 export interface Budget {
   id: string
   user_id: string

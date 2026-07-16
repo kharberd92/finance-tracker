@@ -15,6 +15,9 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number]
 
+/** Sentinel stored in transactions.category when a transaction is split across parts. Never a pickable category. */
+export const SPLIT_CATEGORY = 'Split'
+
 /** Maps Plaid's personal_finance_category.primary onto our list. */
 const PLAID_PRIMARY_TO_CATEGORY: Record<string, Category> = {
   INCOME: 'Income',

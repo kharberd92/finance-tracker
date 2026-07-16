@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CATEGORIES, mapPlaidCategory, SPENDING_CATEGORIES, isSpendingCategory } from './categories'
+import { CATEGORIES, mapPlaidCategory, SPENDING_CATEGORIES, isSpendingCategory, isCategory, SPLIT_CATEGORY } from './categories'
 
 describe('CATEGORIES', () => {
   it('includes the core categories and Uncategorized', () => {
@@ -52,5 +52,16 @@ describe('isSpendingCategory', () => {
     expect(isSpendingCategory('Income')).toBe(false)
     expect(isSpendingCategory('Transfer')).toBe(false)
     expect(isSpendingCategory('Not A Category')).toBe(false)
+  })
+})
+
+describe('SPLIT_CATEGORY sentinel', () => {
+  it('is the literal "Split"', () => {
+    expect(SPLIT_CATEGORY).toBe('Split')
+  })
+
+  it('is never a pickable category', () => {
+    expect(isCategory(SPLIT_CATEGORY)).toBe(false)
+    expect(isSpendingCategory(SPLIT_CATEGORY)).toBe(false)
   })
 })
