@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { monthBounds } from '@/lib/finance/month'
 import { TransactionsView } from '@/components/transactions/transactions-view'
-import type { Account, Transaction } from '@/lib/types'
+import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
+import type { Account, Transaction, TransactionSplit } from '@/lib/types'
 
 function currentMonth(): string {
   const d = new Date()
@@ -28,10 +29,14 @@ export default async function TransactionsPage({
     supabase.from('accounts').select('*').order('name'),
   ])
 
+  const transactions = (txns ?? []) as Transaction[]
+  const splits = await fetchSplitsFor(supabase, transactions.map((t) => t.id))
+
   return (
     <TransactionsView
       month={ym}
-      transactions={(txns ?? []) as Transaction[]}
+      transactions={transactions}
+      splits={splits}
       accounts={(accts ?? []) as Account[]}
     />
   )

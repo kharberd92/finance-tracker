@@ -6,20 +6,22 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/empty-state'
-import { CATEGORIES } from '@/lib/finance/categories'
+import { CATEGORIES, SPLIT_CATEGORY } from '@/lib/finance/categories'
 import { shiftMonth } from '@/lib/finance/month'
 import { TransactionForm } from './transaction-form'
-import type { Account, Transaction } from '@/lib/types'
+import type { Account, Transaction, TransactionSplit } from '@/lib/types'
 
 const selectClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm'
 
 export function TransactionsView({
   month,
   transactions,
+  splits,
   accounts,
 }: {
   month: string
   transactions: Transaction[]
+  splits: TransactionSplit[]
   accounts: Account[]
 }) {
   const router = useRouter()
@@ -35,15 +37,30 @@ export function TransactionsView({
     return m
   }, [accounts])
 
+  const splitsByTxn = useMemo(() => {
+    const m: Record<string, TransactionSplit[]> = {}
+    for (const s of splits) (m[s.transaction_id] ??= []).push(s)
+    return m
+  }, [splits])
+
   const filtered = useMemo(
     () =>
       transactions.filter((t) => {
         if (accountFilter !== 'all' && t.account_id !== accountFilter) return false
-        if (categoryFilter !== 'all' && t.category !== categoryFilter) return false
+        if (categoryFilter !== 'all') {
+          const parts = splitsByTxn[t.id]
+          const matches =
+            categoryFilter === SPLIT_CATEGORY
+              ? t.category === SPLIT_CATEGORY
+              : parts
+                ? parts.some((p) => p.category === categoryFilter)
+                : t.category === categoryFilter
+          if (!matches) return false
+        }
         if (search && !t.merchant_name.toLowerCase().includes(search.toLowerCase())) return false
         return true
       }),
-    [transactions, accountFilter, categoryFilter, search],
+    [transactions, accountFilter, categoryFilter, search, splitsByTxn],
   )
 
   function gotoMonth(delta: number) {
@@ -92,6 +109,7 @@ export function TransactionsView({
               {c}
             </option>
           ))}
+          <option value={SPLIT_CATEGORY}>Split</option>
         </select>
 
         <Input
@@ -123,7 +141,11 @@ export function TransactionsView({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{t.category}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {t.category === SPLIT_CATEGORY
+                    ? `Split (${splitsByTxn[t.id]?.length ?? 0})`
+                    : t.category}
+                </span>
                 <span
                   className={
                     t.amount < 0 ? 'font-semibold tabular-nums text-expense' : 'font-semibold tabular-nums text-income'
@@ -141,6 +163,7 @@ export function TransactionsView({
         <TransactionForm
           accounts={accounts}
           transaction={editing}
+          splits={editing ? splitsByTxn[editing.id] ?? [] : []}
           onClose={() => {
             setCreating(false)
             setEditing(null)
