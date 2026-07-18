@@ -970,7 +970,7 @@ Expected: build succeeds, no unused-var or type errors (the `splits` prop is now
 Run: `npx vitest run`
 Expected: entire suite passes.
 
-- [ ] **Step 4: Manual smoke test**
+- [x] **Step 4: Manual smoke test** — passed 2026-07-18 (all 6 steps; initial "Could not save the split" was just migration `0007` not yet applied).
 
 Start the dev server (`npm run dev`, requires `.env.local`) and confirm end-to-end (after applying migration `0007` to the Supabase project — see the Post-Implementation note):
 
@@ -992,7 +992,7 @@ git commit -m "feat(web): add split editor to the transaction modal"
 
 ## Post-Implementation
 
-- **Apply migration `0007_transaction_splits.sql`** to the Supabase project (dashboard SQL editor or `supabase db push`) before the feature works end-to-end — same requirement as every prior migration.
+- **Apply migration `0007_transaction_splits.sql`** to the Supabase project (dashboard SQL editor or `supabase db push`) before the feature works end-to-end — same requirement as every prior migration. **Applied 2026-07-18.**
 - Update `finance-tracker/CLAUDE.md` (or the web `AGENTS.md`) with a short "Transaction splitting" subsection and mark this plan complete, mirroring how prior plans are recorded.
 
 ## Notes / Known Trade-offs (from the spec)
