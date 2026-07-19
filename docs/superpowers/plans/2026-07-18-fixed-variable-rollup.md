@@ -368,7 +368,7 @@ Expected: build succeeds.
 Run: `npx vitest run`
 Expected: entire suite passes (157 pre-existing tests + 11 new).
 
-- [ ] **Step 3: Manual smoke test**
+- [x] **Step 3: Manual smoke test** — passed 2026-07-19 (all checks; committed matches bills-page summary, exclusions correct, legend sums to 100%).
 
 Start the dev server (`npm run dev`) and confirm on `/` (dashboard):
 
