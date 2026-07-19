@@ -8,6 +8,7 @@ import { BudgetWidget } from '@/components/dashboard/budget-widget'
 import { GoalsWidget } from '@/components/dashboard/goals-widget'
 import { BillsWidget } from '@/components/dashboard/bills-widget'
 import { RecentTransactionsWidget } from '@/components/dashboard/recent-transactions-widget'
+import { FixedVariableCard } from '@/components/dashboard/fixed-variable-card'
 import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
 import { explodeSplits } from '@/lib/finance/split'
 import type { Account, Transaction, Budget, Bill, Goal } from '@/lib/types'
@@ -82,6 +83,12 @@ export default async function DashboardPage() {
         <GoalsWidget goals={goals} />
         <BillsWidget bills={bills} now={now} />
         <RecentTransactionsWidget transactions={transactions} />
+        <FixedVariableCard
+          bills={bills}
+          transactions={exploded}
+          month={month}
+          income={rows[rows.length - 1]?.income ?? 0}
+        />
       </div>
     </div>
   )
