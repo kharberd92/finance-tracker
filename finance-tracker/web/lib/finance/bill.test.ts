@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextDueDate, daysUntilDue, mostRecentDueDate, isPaid, monthlyCost } from './bill'
+import { nextDueDate, daysUntilDue, mostRecentDueDate, isPaid, monthlyCost, monthlyEquivalent } from './bill'
 import type { Bill } from '@/lib/types'
 
 function bill(partial: Partial<Bill>): Bill {
@@ -131,5 +131,14 @@ describe('monthlyCost', () => {
     expect(monthlyCost(bill({ frequency: 'monthly', amount: 1200 }))).toBe(1200)
     expect(monthlyCost(bill({ frequency: 'quarterly', amount: 300 }))).toBe(100)
     expect(monthlyCost(bill({ frequency: 'yearly', amount: 1200 }))).toBe(100)
+  })
+})
+
+describe('monthlyEquivalent', () => {
+  it('normalizes each frequency to $/mo', () => {
+    expect(monthlyEquivalent(12, 'weekly')).toBe(52)
+    expect(monthlyEquivalent(100, 'monthly')).toBe(100)
+    expect(monthlyEquivalent(300, 'quarterly')).toBe(100)
+    expect(monthlyEquivalent(1200, 'yearly')).toBe(100)
   })
 })

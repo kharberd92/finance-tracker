@@ -1,4 +1,4 @@
-import type { Bill } from '@/lib/types'
+import type { Bill, BillFrequency } from '@/lib/types'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -106,10 +106,15 @@ export function isPaid(bill: Bill, from: Date): boolean {
   return paid >= cycleStart
 }
 
+/** Normalized monthly-equivalent cost of an amount recurring at a frequency. */
+export function monthlyEquivalent(amount: number, frequency: BillFrequency): number {
+  if (frequency === 'weekly') return (amount * 52) / 12
+  if (frequency === 'monthly') return amount
+  if (frequency === 'quarterly') return amount / 3
+  return amount / 12 // yearly
+}
+
 /** Normalized monthly-equivalent cost of the bill. */
 export function monthlyCost(bill: Bill): number {
-  if (bill.frequency === 'weekly') return (bill.amount * 52) / 12
-  if (bill.frequency === 'monthly') return bill.amount
-  if (bill.frequency === 'quarterly') return bill.amount / 3
-  return bill.amount / 12 // yearly
+  return monthlyEquivalent(bill.amount, bill.frequency)
 }
