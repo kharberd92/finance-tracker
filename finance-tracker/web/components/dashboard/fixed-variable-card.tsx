@@ -27,6 +27,7 @@ export function FixedVariableCard({
   const total = committed + variable
   const fixedPct = total > 0 ? (committed / total) * 100 : 0
   const variablePct = total > 0 ? 100 - fixedPct : 0
+  const fixedPctRounded = Math.round(fixedPct)
 
   return (
     <Card className="space-y-3 p-4">
@@ -60,11 +61,11 @@ export function FixedVariableCard({
       <div className="flex gap-4 text-xs text-muted-foreground">
         <span>
           <span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-primary" />
-          Committed {Math.round(fixedPct)}%
+          Committed {fixedPctRounded}%
         </span>
         <span>
           <span className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-primary/40" />
-          Variable {Math.round(variablePct)}%
+          Variable {total > 0 ? 100 - fixedPctRounded : 0}%
         </span>
       </div>
 
