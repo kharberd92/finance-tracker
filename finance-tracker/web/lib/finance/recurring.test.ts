@@ -160,6 +160,11 @@ describe('matchCandidates', () => {
     expect(open).toEqual([])
   })
 
+  it('a very short bill name does not fuzzy-match unrelated candidates', () => {
+    const { open } = matchCandidates([candidate({})], [bill({ name: 'Net' })], [])
+    expect(open).toHaveLength(1)
+  })
+
   it('buckets a dismissed candidate', () => {
     const { open, dismissed } = matchCandidates([candidate({})], [], ['netflix.com'])
     expect(open).toEqual([])
