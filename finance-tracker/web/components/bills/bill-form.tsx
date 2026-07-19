@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { SPENDING_CATEGORIES } from '@/lib/finance/categories'
 import { saveBill, deleteBill, type ActionState } from '@/app/(app)/bills/actions'
-import type { Bill } from '@/lib/types'
+import type { Bill, BillFrequency } from '@/lib/types'
 
 const initial: ActionState = {}
 const fieldClass = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
@@ -18,10 +18,28 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-export function BillForm({ bill, onClose }: { bill: Bill | null; onClose: () => void }) {
+export interface BillPrefill {
+  name: string
+  amount: number
+  category: string
+  frequency: BillFrequency
+  due_day: number
+  due_month: number | null
+  merchant_name: string
+}
+
+export function BillForm({
+  bill,
+  prefill = null,
+  onClose,
+}: {
+  bill: Bill | null
+  prefill?: BillPrefill | null
+  onClose: () => void
+}) {
   const router = useRouter()
   const [state, formAction, pending] = useActionState(saveBill, initial)
-  const [frequency, setFrequency] = useState<string>(bill?.frequency ?? 'monthly')
+  const [frequency, setFrequency] = useState<string>(bill?.frequency ?? prefill?.frequency ?? 'monthly')
 
   useEffect(() => {
     if (state.success) {
@@ -58,18 +76,21 @@ export function BillForm({ bill, onClose }: { bill: Bill | null; onClose: () => 
         <h2 className="text-lg font-semibold">{b ? 'Edit bill' : 'Add bill'}</h2>
         <form action={formAction} className="space-y-3">
           {b && <input type="hidden" name="id" value={b.id} />}
+          {!b && prefill?.merchant_name && (
+            <input type="hidden" name="merchant_name" value={prefill.merchant_name} />
+          )}
 
           <div>
             <label className="text-sm">Name</label>
-            <Input name="name" defaultValue={b?.name ?? ''} required />
+            <Input name="name" defaultValue={b?.name ?? prefill?.name ?? ''} required />
           </div>
           <div>
             <label className="text-sm">Amount</label>
-            <Input name="amount" type="number" step="0.01" min="0" defaultValue={b?.amount ?? ''} required />
+            <Input name="amount" type="number" step="0.01" min="0" defaultValue={b?.amount ?? prefill?.amount ?? ''} required />
           </div>
           <div>
             <label className="text-sm">Category</label>
-            <select name="category" className={fieldClass} defaultValue={b?.category ?? SPENDING_CATEGORIES[0]} required>
+            <select name="category" className={fieldClass} defaultValue={b?.category ?? prefill?.category ?? SPENDING_CATEGORIES[0]} required>
               {SPENDING_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -95,7 +116,7 @@ export function BillForm({ bill, onClose }: { bill: Bill | null; onClose: () => 
           {needsMonth && (
             <div>
               <label className="text-sm">Month</label>
-              <select name="due_month" className={fieldClass} defaultValue={b?.due_month ?? 1} required>
+              <select name="due_month" className={fieldClass} defaultValue={b?.due_month ?? prefill?.due_month ?? 1} required>
                 {MONTHS.map((mn, i) => (
                   <option key={mn} value={i + 1}>
                     {mn}
@@ -108,7 +129,7 @@ export function BillForm({ bill, onClose }: { bill: Bill | null; onClose: () => 
           <div>
             <label className="text-sm">{isWeekly ? 'Day of week' : 'Day of month'}</label>
             {isWeekly ? (
-              <select name="due_day" className={fieldClass} defaultValue={b?.due_day ?? 1} required>
+              <select name="due_day" className={fieldClass} defaultValue={b?.due_day ?? prefill?.due_day ?? 1} required>
                 {WEEKDAYS.map((wd, i) => (
                   <option key={wd} value={i}>
                     {wd}
@@ -116,7 +137,7 @@ export function BillForm({ bill, onClose }: { bill: Bill | null; onClose: () => 
                 ))}
               </select>
             ) : (
-              <Input name="due_day" type="number" min="1" max="31" defaultValue={b?.due_day ?? 1} required />
+              <Input name="due_day" type="number" min="1" max="31" defaultValue={b?.due_day ?? prefill?.due_day ?? 1} required />
             )}
           </div>
 

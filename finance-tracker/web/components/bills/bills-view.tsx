@@ -9,7 +9,9 @@ import { EmptyState } from '@/components/empty-state'
 import { nextDueDate, daysUntilDue, isPaid, monthlyCost } from '@/lib/finance/bill'
 import { setBillPaid } from '@/app/(app)/bills/actions'
 import { BillForm } from './bill-form'
+import { DetectedRecurring } from './detected-recurring'
 import type { Bill } from '@/lib/types'
+import type { RecurringCandidate } from '@/lib/finance/recurring'
 
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 const fmtDate = (date: Date) =>
@@ -22,7 +24,15 @@ function dueLabel(days: number | null): string {
   return `due in ${days} day${days === 1 ? '' : 's'}`
 }
 
-export function BillsView({ bills }: { bills: Bill[] }) {
+export function BillsView({
+  bills,
+  detectedOpen,
+  detectedDismissed,
+}: {
+  bills: Bill[]
+  detectedOpen: RecurringCandidate[]
+  detectedDismissed: RecurringCandidate[]
+}) {
   const router = useRouter()
   const [editing, setEditing] = useState<Bill | null>(null)
   const [creating, setCreating] = useState(false)
@@ -100,6 +110,8 @@ export function BillsView({ bills }: { bills: Bill[] }) {
           </div>
         </>
       )}
+
+      <DetectedRecurring open={detectedOpen} dismissed={detectedDismissed} />
 
       {(creating || editing) && (
         <BillForm
