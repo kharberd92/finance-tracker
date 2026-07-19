@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeMerchant, detectRecurring } from './recurring'
-import type { Transaction } from '@/lib/types'
+import { normalizeMerchant, detectRecurring, matchCandidates } from './recurring'
+import type { Transaction, Bill } from '@/lib/types'
+import type { RecurringCandidate } from './recurring'
 
 function txn(partial: Partial<Transaction>): Transaction {
   return {
@@ -126,5 +127,55 @@ describe('detectRecurring — input filtering', () => {
     ]
     const out = detectRecurring(txns, TODAY)
     expect(out.map((c) => c.merchantKey)).toEqual(['big rent', 'cheap sub'])
+  })
+})
+
+describe('matchCandidates', () => {
+  function candidate(partial: Partial<RecurringCandidate>): RecurringCandidate {
+    return {
+      merchantKey: 'netflix.com', displayName: 'Netflix.com', frequency: 'monthly' as const,
+      amount: 15.49, occurrences: 5, lastDate: '2026-06-15',
+      dueDayGuess: 15, dueMonthGuess: null, categoryGuess: 'Entertainment',
+      ...partial,
+    }
+  }
+  function bill(partial: Partial<Bill>): Bill {
+    return {
+      id: 'b', user_id: 'u', name: 'Rent', amount: 1200,
+      due_day: 1, frequency: 'monthly', category: 'Bills & Utilities',
+      due_month: null, last_paid_date: null, merchant_name: null, ...partial,
+    }
+  }
+
+  it('excludes a candidate tracked via exact merchant link', () => {
+    const { open, dismissed } = matchCandidates(
+      [candidate({})], [bill({ merchant_name: 'netflix.com' })], [],
+    )
+    expect(open).toEqual([])
+    expect(dismissed).toEqual([])
+  })
+
+  it('excludes a candidate tracked via fuzzy bill-name match', () => {
+    const { open } = matchCandidates([candidate({})], [bill({ name: 'Netflix' })], [])
+    expect(open).toEqual([])
+  })
+
+  it('buckets a dismissed candidate', () => {
+    const { open, dismissed } = matchCandidates([candidate({})], [], ['netflix.com'])
+    expect(open).toEqual([])
+    expect(dismissed).toHaveLength(1)
+  })
+
+  it('tracked wins over dismissed', () => {
+    const { open, dismissed } = matchCandidates(
+      [candidate({})], [bill({ merchant_name: 'netflix.com' })], ['netflix.com'],
+    )
+    expect(open).toEqual([])
+    expect(dismissed).toEqual([])
+  })
+
+  it('leaves unmatched candidates open', () => {
+    const { open } = matchCandidates([candidate({})], [bill({})], [])
+    expect(open).toHaveLength(1)
   })
 })

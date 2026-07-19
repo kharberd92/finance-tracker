@@ -51,6 +51,13 @@ export interface Bill {
   frequency: BillFrequency
   category: string
   last_paid_date?: string | null // ISO 'YYYY-MM-DD'; null = unpaid this cycle
+  merchant_name?: string | null // normalized merchant key; set when promoted from a detected candidate
+}
+
+export interface RecurringDismissal {
+  id: string
+  user_id: string
+  merchant_name: string // normalized merchant key
 }
 
 export interface Goal {

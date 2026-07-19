@@ -1,4 +1,4 @@
-import type { BillFrequency, Transaction } from '@/lib/types'
+import type { BillFrequency, Transaction, Bill } from '@/lib/types'
 import { SPENDING_CATEGORIES } from '@/lib/finance/categories'
 import { monthlyEquivalent } from '@/lib/finance/bill'
 
@@ -120,4 +120,32 @@ export function detectRecurring(transactions: Transaction[], today: Date): Recur
   return out.sort(
     (a, b) => monthlyEquivalent(b.amount, b.frequency) - monthlyEquivalent(a.amount, a.frequency),
   )
+}
+
+/**
+ * Buckets candidates against tracked bills and dismissals. A candidate is
+ * tracked when a bill's merchant_name equals its key (exact link, set on
+ * promote) or a bill's normalized name fuzzy-matches (substring either way —
+ * the fallback for pre-existing manual bills). Tracked > dismissed > open;
+ * tracked candidates appear in neither returned list.
+ */
+export function matchCandidates(
+  candidates: RecurringCandidate[],
+  bills: Bill[],
+  dismissedKeys: string[],
+): { open: RecurringCandidate[]; dismissed: RecurringCandidate[] } {
+  const dismissedSet = new Set(dismissedKeys)
+  const open: RecurringCandidate[] = []
+  const dismissed: RecurringCandidate[] = []
+  for (const c of candidates) {
+    const tracked = bills.some((b) => {
+      if (b.merchant_name && normalizeMerchant(b.merchant_name) === c.merchantKey) return true
+      const name = normalizeMerchant(b.name)
+      return name.length > 0 && (c.merchantKey.includes(name) || name.includes(c.merchantKey))
+    })
+    if (tracked) continue
+    if (dismissedSet.has(c.merchantKey)) dismissed.push(c)
+    else open.push(c)
+  }
+  return { open, dismissed }
 }
