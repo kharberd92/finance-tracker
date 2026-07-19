@@ -19,6 +19,10 @@ const billSchema = z
       (v) => (v === '' || v == null ? undefined : v),
       z.coerce.number().int().min(1).max(12).optional(),
     ),
+    merchant_name: z.preprocess(
+      (v) => (v === '' || v == null ? undefined : v),
+      z.string().trim().optional(),
+    ),
   })
   .superRefine((val, ctx) => {
     const min = val.frequency === 'weekly' ? 0 : 1
@@ -41,7 +45,7 @@ export async function saveBill(_prev: ActionState, formData: FormData): Promise<
   const parsed = billSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const { id, name, amount, category, frequency, due_day, due_month } = parsed.data
+  const { id, name, amount, category, frequency, due_day, due_month, merchant_name } = parsed.data
   const anchored = frequency === 'quarterly' || frequency === 'yearly'
   const row = {
     name,
@@ -50,6 +54,9 @@ export async function saveBill(_prev: ActionState, formData: FormData): Promise<
     frequency,
     due_day,
     due_month: anchored ? due_month : null,
+    // Only set when provided — a normal edit (no merchant field in the form)
+    // must never wipe an existing merchant link.
+    ...(merchant_name ? { merchant_name } : {}),
   }
 
   const { error } = id
@@ -84,6 +91,40 @@ export async function deleteBill(id: string): Promise<ActionState> {
 
   const { error } = await supabase.from('bills').delete().eq('id', id)
   if (error) return { error: 'Could not delete the bill.' }
+  revalidatePath('/bills')
+  return { success: true }
+}
+
+export async function dismissRecurring(merchantKey: string): Promise<ActionState> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'You are not signed in.' }
+
+  // Upsert with ignoreDuplicates so a double-click is a no-op, not an error.
+  const { error } = await supabase.from('recurring_dismissals').upsert(
+    { user_id: user.id, merchant_name: merchantKey },
+    { onConflict: 'user_id,merchant_name', ignoreDuplicates: true },
+  )
+  if (error) return { error: 'Could not dismiss.' }
+  revalidatePath('/bills')
+  return { success: true }
+}
+
+export async function restoreRecurring(merchantKey: string): Promise<ActionState> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'You are not signed in.' }
+
+  const { error } = await supabase
+    .from('recurring_dismissals')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('merchant_name', merchantKey)
+  if (error) return { error: 'Could not restore.' }
   revalidatePath('/bills')
   return { success: true }
 }
