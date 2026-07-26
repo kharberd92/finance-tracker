@@ -922,7 +922,7 @@ Expected: build succeeds.
 Run: `npx vitest run`
 Expected: entire suite passes (168 pre-existing + 21 new = 189).
 
-- [ ] **Step 6: Manual smoke test**
+- [x] **Step 6: Manual smoke test** — passed 2026-07-25 (all 6 checks).
 
 After applying migration `0008` to the Supabase project (see Post-Implementation), start `npm run dev` and confirm on `/bills`:
 
