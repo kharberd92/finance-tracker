@@ -1,6 +1,6 @@
 # Daily Auto-Sync Implementation Plan
 
-> **STATUS: COMPLETE — implemented & merged to `main` 2026-06-28.** All 7 code tasks done (TDD, 141/141 tests green, `tsc`/build clean) and passed a multi-agent adversarial review (7 findings: 5 fixed, 1 declined with reason, 1 covered by the migration step). **Two live-infra verifications remain with the user** (left unchecked below): apply migration `0006`, set `SUPABASE_SERVICE_ROLE_KEY`, then run the `sync:daily` smoke test (Task 5 Step 5) and register the scheduled task (Task 7 Step 3).
+> **STATUS: COMPLETE — implemented & merged to `main` 2026-06-28.** All 7 code tasks done (TDD, 141/141 tests green, `tsc`/build clean) and passed a multi-agent adversarial review (7 findings: 5 fixed, 1 declined with reason, 1 covered by the migration step). **Live-infra verifications COMPLETE 2026-08-01** (Task 5 Step 5 + Task 7 Step 3, both checked below): `0006` applied, `SUPABASE_SERVICE_ROLE_KEY` set in gitignored `.env.local`, `sync:daily` smoke test green (1/1, exit 0), and the `FinanceTrackerDailySync` scheduled task registered (daily 06:00) and live-tested (Last Result 0). Fully activated.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -581,7 +581,7 @@ main().catch((e) => {
 Run: `npx tsc --noEmit`
 Expected: no errors. If `scripts/daily-sync.ts` is not picked up by `tsconfig.json`'s `include`, add `"scripts/**/*.ts"` to the `include` array (the Next default usually globs `**/*.ts`, so this is often already covered — only add if tsc reports the file is not type-checked or `@/` fails to resolve).
 
-- [ ] **Step 5: Manual smoke test (Plaid sandbox)** — _PENDING: requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` + the `0006` migration applied. Not yet run._
+- [x] **Step 5: Manual smoke test (Plaid sandbox)** — PASSED 2026-08-01. After applying `0006`, setting `SUPABASE_SERVICE_ROLE_KEY`, and reconnecting a fresh sandbox item (an old item was stale with `ITEM_LOGIN_REQUIRED` and was cleared first), `npm run sync:daily` printed `items synced: 1/1 · added 48, modified 0, removed 0`, exit 0, and stamped `last_synced_at`.
 
 Prereq: `.env.local` has `SUPABASE_SERVICE_ROLE_KEY` and Plaid sandbox creds, the `0006` migration is applied, and at least one item is linked (sandbox `user_good`/`pass_good`).
 Run: `npm run sync:daily`
@@ -783,7 +783,7 @@ Confirm the log file won't be committed. Run: `git check-ignore finance-tracker/
 - If it prints `NOT-IGNORED`, add a `finance-tracker/web/.gitignore` entry (or append to the existing one): a line `logs/`.
 - If it prints `IGNORED`, do nothing.
 
-- [ ] **Step 3: Manual verification** — _PENDING: requires an elevated PowerShell + working `.env.local`. Not yet run._
+- [x] **Step 3: Manual verification** — PASSED 2026-08-01. Registered from an elevated PowerShell (`setup-daily-sync.ps1 -Time 06:00`); task `FinanceTrackerDailySync` shows Enabled/Ready, Next Run 06:00, running as `kharb`. Live-tested via `schtasks /run`: Last Result `0`, `logs/daily-sync.log` shows `[daily-sync] items synced: 1/1` (delta `added 0` — expected, the smoke-test run had just pulled everything).
 
 From an elevated PowerShell in `finance-tracker/web`:
 Run: `pwsh -File scripts/setup-daily-sync.ps1 -Time 06:00`
