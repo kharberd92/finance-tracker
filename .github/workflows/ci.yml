@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes an in-flight run for the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web — lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: finance-tracker/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: finance-tracker/web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run test
+
+      # No Supabase or Plaid credentials needed — the build reads env at
+      # request time, not build time, so it succeeds with no .env present.
+      - run: npm run build
+
+  backend:
+    name: backend — test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: finance-tracker/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: finance-tracker/backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test

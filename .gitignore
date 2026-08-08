@@ -2,6 +2,7 @@
 # then whitelist only what we intend to track.
 /*
 !/.gitignore
+!/.github/
 !/docs/
 !/finance-tracker/
 finance-tracker/backend/node_modules/
