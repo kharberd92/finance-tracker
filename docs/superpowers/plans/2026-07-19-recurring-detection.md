@@ -922,7 +922,7 @@ Expected: build succeeds.
 Run: `npx vitest run`
 Expected: entire suite passes (168 pre-existing + 21 new = 189).
 
-- [ ] **Step 6: Manual smoke test**
+- [x] **Step 6: Manual smoke test** — passed 2026-08-09 (all six checks, including the rename case: a promoted bill renamed to something unrelated stays tracked, confirming the match runs off the stored `merchant_name` link rather than the display name).
 
 After applying migration `0008` to the Supabase project (see Post-Implementation), start `npm run dev` and confirm on `/bills`:
 
@@ -967,10 +967,11 @@ All four tasks are implemented and on `main`; build and the full test suite are 
 | `recurring_dismissals_owner` policy | present |
 | `unique (user_id, merchant_name)` constraint | present |
 
-One step remains, and it needs the developer's own machine:
+**The manual smoke test passed on 2026-08-09** — all six checks on `/bills`: the detected-recurring section renders sorted by monthly impact, merchants already covered by a tracked bill are excluded, dismiss/restore round-trips and survives a reload, "Track as bill" opens the form prefilled and the saved bill removes the candidate, and a renamed promoted bill stays tracked (proving the `merchant_name` link is what matches, not the display name).
 
-- **Task 4 Step 6 — manual smoke test:** now unblocked (the schema is in place); run through the `/bills` checks above.
-- **Task 4 Step 7 — project docs:** the target `CLAUDE.md` is an untracked local file outside this repo.
+**This plan is complete** as far as this repo is concerned. One housekeeping item is left, and it lives outside the repo:
+
+- **Task 4 Step 7 — project docs:** the target `CLAUDE.md` is an untracked local file on the developer's machine.
 
 **Deviation from the plan as written:** `matchCandidates` requires a normalized bill name of **4+ characters** before it will fuzzy-match a candidate (commit `cad963b`). The plan text in Task 2 Step 4 shows the original `name.length > 0` guard, which let a bill named e.g. "Net" swallow unrelated merchants.
 
