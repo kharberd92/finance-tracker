@@ -922,7 +922,7 @@ Expected: build succeeds.
 Run: `npx vitest run`
 Expected: entire suite passes (168 pre-existing + 21 new = 189).
 
-- [ ] **Step 6: Manual smoke test**
+- [x] **Step 6: Manual smoke test** — passed 2026-08-09 (all six checks, including the rename case: a promoted bill renamed to something unrelated stays tracked, confirming the match runs off the stored `merchant_name` link rather than the display name).
 
 After applying migration `0008` to the Supabase project (see Post-Implementation), start `npm run dev` and confirm on `/bills`:
 
@@ -950,15 +950,28 @@ git commit -m "feat(web): show detected recurring charges on the bills page"
 
 ## Post-Implementation
 
-- **Apply migration `0008_recurring_detection.sql`** to the Supabase project (dashboard SQL editor or `supabase db push`) before the feature works end-to-end — same requirement as every prior migration.
+- ~~**Apply migration `0008_recurring_detection.sql`**~~ — **applied**; confirmed 2026-08-09 (see Status).
 - Mark this plan complete in `CLAUDE.md` once the manual smoke test passes.
 
-## Status (2026-08-08)
+## Status (2026-08-09)
 
-All four tasks are implemented and on `main`; build and the full test suite are green. Two steps remain, both requiring the developer's own machine:
+All four tasks are implemented and on `main`; build and the full test suite are green, and CI now runs both on every push and PR.
 
-- **Task 4 Step 6 — manual smoke test:** blocked until migration `0008` is applied to the Supabase project. Nothing in this repo can verify it (no project credentials here).
-- **Task 4 Step 7 — project docs:** the target `CLAUDE.md` is an untracked local file outside this repo.
+**Migration `0008` is applied.** Re-running it in the Supabase SQL editor errored with "policy already exists" — `create policy` is the migration's only statement without an `if not exists` guard, so the objects above it were already present. Verified against the live schema:
+
+| Check | Result |
+| --- | --- |
+| `bills.merchant_name` column | present |
+| `recurring_dismissals` table | present |
+| RLS enabled on `recurring_dismissals` | true |
+| `recurring_dismissals_owner` policy | present |
+| `unique (user_id, merchant_name)` constraint | present |
+
+**The manual smoke test passed on 2026-08-09** — all six checks on `/bills`: the detected-recurring section renders sorted by monthly impact, merchants already covered by a tracked bill are excluded, dismiss/restore round-trips and survives a reload, "Track as bill" opens the form prefilled and the saved bill removes the candidate, and a renamed promoted bill stays tracked (proving the `merchant_name` link is what matches, not the display name).
+
+**This plan is complete** as far as this repo is concerned. One housekeeping item is left, and it lives outside the repo:
+
+- **Task 4 Step 7 — project docs:** the target `CLAUDE.md` is an untracked local file on the developer's machine.
 
 **Deviation from the plan as written:** `matchCandidates` requires a normalized bill name of **4+ characters** before it will fuzzy-match a candidate (commit `cad963b`). The plan text in Task 2 Step 4 shows the original `name.length > 0` guard, which let a bill named e.g. "Net" swallow unrelated merchants.
 
