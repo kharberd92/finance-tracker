@@ -4,5 +4,3 @@
 !/.gitignore
 !/docs/
 !/finance-tracker/
-finance-tracker/backend/node_modules/
-finance-tracker/backend/.env

@@ -1,5 +1,17 @@
 # Plaid Serverless Backend Implementation Plan
 
+> ## ⛔ RETIRED — HISTORICAL RECORD ONLY. DO NOT IMPLEMENT.
+>
+> This plan was completed on 2026-05-24 and **retired on 2026-08-13**. Plan 4
+> (`2026-06-13-plaid-bank-sync.md`) re-implemented all three endpoints as Next.js
+> Route Handlers inside `finance-tracker/web/app/api/`, and the standalone
+> `finance-tracker/backend/` folder was deleted as dead code.
+>
+> Nothing below should be built. The live equivalents are
+> `app/api/create-link-token`, `app/api/exchange-token`, and `app/api/sync`
+> (`fetch-data` became `sync`). This file is kept only to document how the
+> original backend worked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the minimal serverless backend the iOS app needs to talk to Plaid — create Link tokens, exchange public tokens for access tokens, and proxy transaction/balance fetches — keeping the Plaid secret server-side.

@@ -34,8 +34,8 @@ follow-up once manual sync is solid).
 - Plaid webhooks / background auto-sync.
 - Styled account & transaction rendering, filters, dashboard widgets (Plan 5).
 - Recurring-transaction / bill detection from Plaid (Plan 5+).
-- Removing the original `finance-tracker/backend/` (left as reference until the
-  web flow is verified working).
+- ~~Removing the original `finance-tracker/backend/` (left as reference until the
+  web flow is verified working).~~ **Done 2026-08-13** — folder deleted.
 
 ## Architecture
 

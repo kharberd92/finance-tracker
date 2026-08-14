@@ -259,5 +259,5 @@ the two coexist as separate packages).
 - Push/email notifications for upcoming bills and budget overages (future).
 - User-defined transaction categorization rules beyond Plaid's categories.
 - Investment holdings detail beyond balance.
-- Eventual removal of `finance-tracker/backend/` once the web app's Route
-  Handlers are verified in production.
+- ~~Eventual removal of `finance-tracker/backend/` once the web app's Route
+  Handlers are verified in production.~~ **Done 2026-08-13** — folder deleted.
