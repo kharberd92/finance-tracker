@@ -2,5 +2,6 @@
 # then whitelist only what we intend to track.
 /*
 !/.gitignore
+!/.github/
 !/docs/
 !/finance-tracker/

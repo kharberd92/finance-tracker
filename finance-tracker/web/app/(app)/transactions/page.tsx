@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { monthBounds } from '@/lib/finance/month'
 import { TransactionsView } from '@/components/transactions/transactions-view'
 import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
-import type { Account, Transaction, TransactionSplit } from '@/lib/types'
+import type { Account, Transaction } from '@/lib/types'
 
 function currentMonth(): string {
   const d = new Date()

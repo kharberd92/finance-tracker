@@ -42,7 +42,7 @@
   - `detectRecurring(transactions: Transaction[], today: Date): RecurringCandidate[]` (sorted by monthly-equivalent impact, descending)
   - `monthlyEquivalent(amount: number, frequency: BillFrequency): number` (from `bill.ts`; `monthlyCost` now delegates to it)
 
-- [ ] **Step 1: Refactor `monthlyCost` to expose `monthlyEquivalent`**
+- [x] **Step 1: Refactor `monthlyCost` to expose `monthlyEquivalent`**
 
 In `finance-tracker/web/lib/finance/bill.ts`, change the import line to include `BillFrequency`:
 
@@ -95,7 +95,7 @@ describe('monthlyEquivalent', () => {
 Run: `npx vitest run lib/finance/bill.test.ts`
 Expected: PASS (existing `monthlyCost` tests prove the delegation is behavior-preserving).
 
-- [ ] **Step 2: Write the failing detection tests**
+- [x] **Step 2: Write the failing detection tests**
 
 Create `finance-tracker/web/lib/finance/recurring.test.ts`:
 
@@ -232,12 +232,12 @@ describe('detectRecurring — input filtering', () => {
 })
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `npx vitest run lib/finance/recurring.test.ts`
 Expected: FAIL — cannot resolve `./recurring`.
 
-- [ ] **Step 4: Write the implementation**
+- [x] **Step 4: Write the implementation**
 
 Create `finance-tracker/web/lib/finance/recurring.ts`:
 
@@ -367,7 +367,7 @@ export function detectRecurring(transactions: Transaction[], today: Date): Recur
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run lib/finance/recurring.test.ts`
 Expected: PASS (15 tests).
@@ -375,7 +375,7 @@ Expected: PASS (15 tests).
 Run: `npx vitest run lib/finance/bill.test.ts`
 Expected: PASS (no regression from the refactor).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add finance-tracker/web/lib/finance/recurring.ts finance-tracker/web/lib/finance/recurring.test.ts finance-tracker/web/lib/finance/bill.ts finance-tracker/web/lib/finance/bill.test.ts
@@ -398,7 +398,7 @@ git commit -m "feat(web): add pure recurring-charge detection"
   - `interface RecurringDismissal { id: string; user_id: string; merchant_name: string }`
   - `matchCandidates(candidates: RecurringCandidate[], bills: Bill[], dismissedKeys: string[]): { open: RecurringCandidate[]; dismissed: RecurringCandidate[] }` — tracked candidates appear in neither list.
 
-- [ ] **Step 1: Extend the types**
+- [x] **Step 1: Extend the types**
 
 In `finance-tracker/web/lib/types.ts`, add to the `Bill` interface (after `last_paid_date`):
 
@@ -416,7 +416,7 @@ export interface RecurringDismissal {
 }
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Append to `finance-tracker/web/lib/finance/recurring.test.ts` (extend the import from `./recurring` with `matchCandidates`, add `import type { RecurringCandidate } from './recurring'`, and add `Bill` to the types import):
 
@@ -472,12 +472,12 @@ describe('matchCandidates', () => {
 })
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `npx vitest run lib/finance/recurring.test.ts`
 Expected: FAIL — `matchCandidates` is not exported.
 
-- [ ] **Step 4: Implement `matchCandidates`**
+- [x] **Step 4: Implement `matchCandidates`**
 
 Append to `finance-tracker/web/lib/finance/recurring.ts` (add `Bill` to the types import at the top):
 
@@ -511,12 +511,12 @@ export function matchCandidates(
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run lib/finance/recurring.test.ts`
 Expected: PASS (20 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add finance-tracker/web/lib/finance/recurring.ts finance-tracker/web/lib/finance/recurring.test.ts finance-tracker/web/lib/types.ts
@@ -538,7 +538,7 @@ git commit -m "feat(web): match recurring candidates against bills and dismissal
   - `restoreRecurring(merchantKey: string): Promise<ActionState>`
   - `saveBill` accepts an optional `merchant_name` form field (stored on insert/update **only when present** — an absent field must never null an existing link).
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 Create `finance-tracker/web/supabase/migrations/0008_recurring_detection.sql`:
 
@@ -561,7 +561,7 @@ create policy recurring_dismissals_owner on recurring_dismissals
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 ```
 
-- [ ] **Step 2: Extend `billSchema` and `saveBill`**
+- [x] **Step 2: Extend `billSchema` and `saveBill`**
 
 In `finance-tracker/web/app/(app)/bills/actions.ts`, add to the `billSchema` object (after `due_month`):
 
@@ -590,7 +590,7 @@ In `saveBill`, extend the destructure and the row (replace the existing two stat
   }
 ```
 
-- [ ] **Step 3: Add the dismiss/restore actions**
+- [x] **Step 3: Add the dismiss/restore actions**
 
 Append to `finance-tracker/web/app/(app)/bills/actions.ts`:
 
@@ -630,12 +630,12 @@ export async function restoreRecurring(merchantKey: string): Promise<ActionState
 }
 ```
 
-- [ ] **Step 4: Verify the build**
+- [x] **Step 4: Verify the build**
 
 Run: `npm run build`
 Expected: build succeeds (actions compile; nothing consumes them yet).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add finance-tracker/web/supabase/migrations/0008_recurring_detection.sql finance-tracker/web/app/\(app\)/bills/actions.ts
@@ -656,7 +656,7 @@ git commit -m "feat(web): add recurring dismissal schema and bill merchant-link 
 - Consumes: `detectRecurring`, `matchCandidates`, `RecurringCandidate` (Tasks 1–2); `dismissRecurring`, `restoreRecurring`, extended `saveBill` (Task 3); `monthlyEquivalent` (Task 1); `RecurringDismissal` type (Task 2).
 - Produces: the finished user-facing feature; `BillForm` gains `prefill?: BillPrefill | null` and exports `interface BillPrefill`.
 
-- [ ] **Step 1: Add the `prefill` prop to `BillForm`**
+- [x] **Step 1: Add the `prefill` prop to `BillForm`**
 
 In `finance-tracker/web/components/bills/bill-form.tsx`:
 
@@ -715,7 +715,7 @@ Thread `prefill` into every `defaultValue` (bill wins, then prefill, then the ol
 - Month select: `defaultValue={b?.due_month ?? prefill?.due_month ?? 1}`
 - Both day-of-week select and day-of-month input: `defaultValue={b?.due_day ?? prefill?.due_day ?? 1}`
 
-- [ ] **Step 2: Create the `DetectedRecurring` component**
+- [x] **Step 2: Create the `DetectedRecurring` component**
 
 Create `finance-tracker/web/components/bills/detected-recurring.tsx`:
 
@@ -846,7 +846,7 @@ export function DetectedRecurring({
 }
 ```
 
-- [ ] **Step 3: Render the section in `BillsView`**
+- [x] **Step 3: Render the section in `BillsView`**
 
 In `finance-tracker/web/components/bills/bills-view.tsx`:
 
@@ -877,7 +877,7 @@ Render the section **after** the `{bills.length === 0 ? ... : ...}` block and **
       <DetectedRecurring open={detectedOpen} dismissed={detectedDismissed} />
 ```
 
-- [ ] **Step 4: Wire the bills page**
+- [x] **Step 4: Wire the bills page**
 
 Replace the body of `finance-tracker/web/app/(app)/bills/page.tsx`:
 
@@ -914,7 +914,7 @@ export default async function BillsPage() {
 }
 ```
 
-- [ ] **Step 5: Verify the build and full test suite**
+- [x] **Step 5: Verify the build and full test suite** — verified 2026-08-08: `npm run build` succeeds (Next.js 16.2.9, TypeScript clean); `npx vitest run` passes 190 tests across 25 files (189 as planned, plus the fuzzy-name-length test added by the follow-up fix).
 
 Run: `npm run build`
 Expected: build succeeds.
@@ -922,7 +922,7 @@ Expected: build succeeds.
 Run: `npx vitest run`
 Expected: entire suite passes (168 pre-existing + 21 new = 189).
 
-- [x] **Step 6: Manual smoke test** — passed 2026-07-25 (all 6 checks).
+- [x] **Step 6: Manual smoke test** — passed 2026-08-09 (all six checks, including the rename case: a promoted bill renamed to something unrelated stays tracked, confirming the match runs off the stored `merchant_name` link rather than the display name).
 
 After applying migration `0008` to the Supabase project (see Post-Implementation), start `npm run dev` and confirm on `/bills`:
 
@@ -933,13 +933,13 @@ After applying migration `0008` to the Supabase project (see Post-Implementation
 5. Editing that bill later (rename it) keeps it tracked (the merchant link, not the name, matches).
 6. With no detectable history the section shows the muted empty line.
 
-- [ ] **Step 7: Update project docs**
+- [x] **Step 7: Update project docs** — done 2026-08-09 (Plan 9 subsection added to the Web App section of the local `CLAUDE.md`, plus its entry in the Plans list).
 
 In `C:\Users\kharb\CLAUDE.md` (untracked project-instructions file — edit, no commit):
 - Add a **"Recurring detection (Plan 9)"** subsection to the Web App section: pure detector in `lib/finance/recurring.ts` (13-month window, cadence bands, ±20% interval / ±30% amount guards, normalized merchant keys), `matchCandidates` (exact `bills.merchant_name` link or fuzzy name fallback; tracked > dismissed > open), migration `0008` (`bills.merchant_name` + `recurring_dismissals`), `/bills` "Detected recurring" section with Track-as-bill (prefilled `BillForm`) and Dismiss/Restore; detection recomputed per page load, no stored results.
 - Add Plan 9 to the Plans list with its status.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add finance-tracker/web/components/bills/bill-form.tsx finance-tracker/web/components/bills/detected-recurring.tsx finance-tracker/web/components/bills/bills-view.tsx finance-tracker/web/app/\(app\)/bills/page.tsx
@@ -950,8 +950,30 @@ git commit -m "feat(web): show detected recurring charges on the bills page"
 
 ## Post-Implementation
 
-- **Apply migration `0008_recurring_detection.sql`** to the Supabase project (dashboard SQL editor or `supabase db push`) before the feature works end-to-end — same requirement as every prior migration.
+- ~~**Apply migration `0008_recurring_detection.sql`**~~ — **applied**; confirmed 2026-08-09 (see Status).
 - Mark this plan complete in `CLAUDE.md` once the manual smoke test passes.
+
+## Status (2026-08-09)
+
+All four tasks are implemented and on `main`; build and the full test suite are green, and CI now runs both on every push and PR.
+
+**Migration `0008` is applied.** Re-running it in the Supabase SQL editor errored with "policy already exists" — `create policy` is the migration's only statement without an `if not exists` guard, so the objects above it were already present. Verified against the live schema:
+
+| Check | Result |
+| --- | --- |
+| `bills.merchant_name` column | present |
+| `recurring_dismissals` table | present |
+| RLS enabled on `recurring_dismissals` | true |
+| `recurring_dismissals_owner` policy | present |
+| `unique (user_id, merchant_name)` constraint | present |
+
+**The manual smoke test passed on 2026-08-09** — all six checks on `/bills`: the detected-recurring section renders sorted by monthly impact, merchants already covered by a tracked bill are excluded, dismiss/restore round-trips and survives a reload, "Track as bill" opens the form prefilled and the saved bill removes the candidate, and a renamed promoted bill stays tracked (proving the `merchant_name` link is what matches, not the display name).
+
+**Task 4 Step 7 is done** (2026-08-09) — the Plan 9 subsection and Plans-list entry were added to the local `CLAUDE.md`, an untracked file outside this repo.
+
+**This plan is complete.** Every task and step is finished, the migration is applied, and the smoke test passed. Nothing is outstanding.
+
+**Deviation from the plan as written:** `matchCandidates` requires a normalized bill name of **4+ characters** before it will fuzzy-match a candidate (commit `cad963b`). The plan text in Task 2 Step 4 shows the original `name.length > 0` guard, which let a bill named e.g. "Net" swallow unrelated merchants.
 
 ## Notes / Known Trade-offs (from the spec)
 
