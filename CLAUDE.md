@@ -1,0 +1,103 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository Setup
+
+The git root is the Windows home directory (`C:\Users\kharb`). A `.gitignore` at the root ignores everything by default and whitelists only what we intend to track: `docs/`, `finance-tracker/`, `.github/`, and the two root instruction files (`CLAUDE.md`, `AGENTS.md`). Only add new top-level project folders to `.gitignore` when starting work on them.
+
+**`CLAUDE.md` and `AGENTS.md` are the same document** — `AGENTS.md` is the Codex-facing copy, differing only in its first and third lines. **Any edit to one must be mirrored to the other in the same commit.** They drifted badly once (2026-08-13: `AGENTS.md` was three plans stale), which is why they are now tracked.
+
+## Project: Personal Finance Tracker
+
+A personal finance web app with a Plaid backend for bank sync. User data lives in Supabase (Postgres + auth). The frontend and API are a single Next.js App Router project deployed to Vercel.
+
+**Decision (2026-05-31):** Switched from iOS app to web app for cross-device access. The iOS plan (Plan 2) is superseded by the web app design.
+
+**Decision (2026-08-13):** The standalone Plaid serverless backend (`finance-tracker/backend/`, Plan 1) was **deleted**. Plan 4 re-implemented all three of its endpoints as Next.js Route Handlers in the web app, so the folder had been dead code since 2026-06-13. Recover it from git history if ever needed (`git show 7110640:finance-tracker/backend/...`).
+
+**Plans live in `docs/superpowers/plans/` — read the relevant plan before starting a new implementation task.**
+
+### Architecture
+
+One component: the **web app** (`finance-tracker/web/`) — Next.js App Router + Supabase + Tailwind CSS + shadcn/ui, frontend and API in a single project deployed to Vercel. Magic link auth via Supabase. All pages require auth; the root `proxy.ts` guard redirects unauthenticated users to `/login`.
+
+### Plaid Data Flow
+
+1. User clicks "Connect Bank" → client calls `/api/create-link-token` → opens Plaid Link
+2. Plaid Link returns `publicToken` → client calls `/api/exchange-token` → server stores encrypted `accessToken` in Supabase
+3. On sync, client calls `/api/sync` → server decrypts the stored token, runs the Plaid delta loop, writes transactions to Supabase
+
+### Database Schema (Supabase Postgres)
+
+All tables have `user_id FK → auth.users` and Row Level Security. Net worth is computed at query time.
+
+- `accounts` — id, user_id, name, type (checking|savings|credit|investment), current_balance, institution_name, plaid_account_id?, encrypted_plaid_access_token?
+- `transactions` — id, user_id, account_id?, amount (negative=expense), date, merchant_name, category, notes, is_manual
+- `budgets` — id, user_id, category, monthly_limit
+- `bills` — id, user_id, name, amount, due_day, frequency (weekly|monthly|quarterly|yearly), category, is_paid
+- `goals` — id, user_id, name, target_amount, current_amount, target_date?, icon, color_hex
+
+### Brainstorming Progress
+
+Design sections approved (design doc and Plan 3 are written):
+- [x] Architecture overview
+- [x] Database schema
+- [x] Pages / routes
+- [x] Components and file structure
+- [x] Error handling and auth flow
+- [x] Testing strategy
+
+The web app foundation design doc and Plan 3 (`2026-06-11-web-app-foundation.md`) are complete and Plan 3 is implemented. Next steps live in Plan 4 (Plaid Route Handlers) and Plan 5 (real feature pages + Server Actions).
+
+## Web App (`finance-tracker/web/`)
+
+Built by Plan 3. Stack: **Next.js 16** (App Router) · TypeScript · Tailwind CSS · shadcn/ui (on **Base UI**, not Radix) · `@supabase/ssr` · Zod 4 · Vitest. Deployed to Vercel.
+
+**Next 16 gotchas (see `finance-tracker/web/AGENTS.md` — verify against `node_modules/next/dist/docs/` before writing code):**
+- The `middleware` file convention was renamed to **`proxy`** — the root guard is `proxy.ts` exporting `proxy()`, not `middleware.ts`.
+- `cookies()` is async (`await cookies()`).
+- shadcn Button is built on Base UI: compose with the `render` prop (`<Button render={<Link/>} nativeButton={false}>`), not Radix's `asChild`.
+- Zod 4: prefer top-level `z.email()` over the deprecated `z.string().email()`.
+
+### Commands
+```bash
+cd finance-tracker/web
+npm run dev          # local dev server (requires .env.local from .env.local.example)
+npm run build        # production build
+npx vitest run       # run finance-logic unit tests
+```
+
+Pure money math lives in `lib/finance/` (no Supabase/React deps, unit-tested). Supabase clients are in `lib/supabase/`. DB migrations are in `supabase/migrations/` (`0001_init.sql`, `0002_plaid.sql`) — each **must be applied to the Supabase project** (dashboard SQL editor or `supabase db push`) before the app works end-to-end.
+
+**Plaid (Plan 4):** server-only Route Handlers in `app/api/*` (`create-link-token`, `exchange-token`, `sync`) resolve the user from the session — never the request body. The access token is AES-256-GCM encrypted (`lib/plaid/crypto.ts`, key `PLAID_TOKEN_ENC_KEY`) and stored on the `plaid_items` table; it is never returned to the client. Pure logic (mappers, the `transactionsSync` delta loop) lives in `lib/plaid/{map,sync}.ts`. Sync is manual (a "Sync now" button); webhooks are deferred. Plaid sandbox login for testing: `user_good` / `pass_good`.
+
+**Categories & transactions (Plan 5a):** a controlled category list in `lib/finance/categories.ts` backs every category dropdown; Plaid categories map onto it (`mapPlaidCategory`). Sync is "sticky" — `app/api/sync` never overwrites a transaction's `category` on `modified`, so user re-categorizations persist. The `/transactions` page is month-scoped (server fetch by month, client-side account/category/merchant filters) with manual create/edit/delete (`is_manual`-guarded) and category/notes edits on synced rows. Its UI uses native `<select>`/`<textarea>` + a Tailwind modal (not shadcn Dialog/Select).
+
+**Budgets (Plan 5b):** one budget per category (`unique (user_id, category)`, migration `0003_budget_unique.sql`), restricted to `SPENDING_CATEGORIES` (controlled list minus Income/Transfer). `/budgets` is month-scoped (reuses `monthBounds`/`shiftMonth`); each row shows `spentThisMonth` vs. limit as a progress bar colored by `budgetStatus` (under/near/over = green/amber/red). `saveBudget` upserts on the unique key; reuses the budget math from `lib/finance/budget.ts`.
+
+**Goals (Plan 5c):** standalone savings goals (no month scope; the `goals` table pre-existed — no migration). `/goals` lists goal cards with a progress bar tinted by the goal's preset `color_hex`; progress is manual via an "Add contribution" action (`addContribution` increments `current_amount`) plus direct edits in the edit dialog. Icons/colors come from controlled `GOAL_ICONS`/`GOAL_COLORS` (`lib/finance/goal-presets.ts`). Pure math in `lib/finance/goal.ts`: `goalProgress` (0–100 percent), `goalReached`, `monthlyPaceNeeded` (optional target-date pace hint), and the pre-existing `monthsToGoal` (kept). No contribution history, no account/transaction linking.
+
+**Bills (Plan 5d):** recurring bills (`/bills`), flat list sorted by soonest due. Migration `0004_bills_scheduling.sql` adds `due_month` (quarterly/yearly anchor) + `last_paid_date` and **drops `is_paid`**. Pure helpers in `lib/finance/bill.ts` (extends Plan 3): `nextDueDate`/`mostRecentDueDate` (all four frequencies, day-clamped via `dueOn`), `daysUntilDue`, `isPaid` (auto-resets each cycle from `last_paid_date >= mostRecentDueDate`), `monthlyCost` (normalized $/mo: weekly ×52/12, monthly ×1, quarterly ÷3, yearly ÷12). Categories from `SPENDING_CATEGORIES`. `saveBill` (frequency-conditional Zod: `due_month` required for quarterly/yearly)/`setBillPaid`/`deleteBill` actions. Summary shows "≈ $/mo across N bills". Fixed-vs-variable rollups deferred to 5e (bills = committed/fixed vs. transactions = variable). Known minor follow-up: BillForm's `due_day` keeps its value when switching frequency to/from weekly (server validates; can confuse on edit).
+
+**Dashboard (Plan 5e):** the landing page (`app/(app)/page.tsx`) — net worth, a this-month income/expense/net summary, a custom-SVG cashflow chart (`components/dashboard/cashflow-chart.tsx`, 6/12-month toggle, no charting library), and four widgets (budgets/goals/bills/recent transactions) each linking to its page. Cashflow math is in `lib/finance/cashflow.ts` (`monthlyCashflow`/`trailingMonths`/`cashflowDomain`; income/expense exclude Transfer). Net worth stays a current figure — no historical snapshots/trend.
+
+**Transaction splitting (Plan 7):** one transaction split across multiple categories. A child `transaction_splits` table (`0007_transaction_splits.sql`: `transaction_id FK`, `category`, signed `amount`; RLS owner policy, cascade on delete) holds the parts; the parent `transactions.category` becomes the sentinel `SPLIT_CATEGORY = 'Split'` (a constant in `lib/finance/categories.ts`, deliberately **not** in `CATEGORIES`, so it never enters a dropdown or budget rollup). Architecture is "explode at the fetch boundary": the pure `explodeSplits` in `lib/finance/split.ts` (+ `splitTotal`/`splitsMatchParent`) replaces each split parent with one virtual per-part `Transaction`, so the existing category rollups (`spentThisMonth`, `monthlyCashflow`) are fed exploded rows and stay **unchanged**. Server helper `fetchSplitsFor` (`lib/transactions/fetch-splits.ts`) loads parts; the dashboard and budgets pages explode before rolling up (dashboard's *recent-transactions* widget keeps raw parent rows). Actions `saveTransactionSplits`/`removeTransactionSplits` (transactions `actions.ts`) resolve the parent amount from the DB, validate ≥2 parts summing to `|amount|` (1-cent tolerance), sign parts to the parent, and set/clear the `'Split'` sentinel; non-atomic delete→insert→update is an accepted single-user trade-off. The `/transactions` list shows split rows as "Split (N)" (1:1 with the statement) and filters by any part; the edit modal has a split editor (add/remove parts, live allocated-vs-total, Save disabled until balanced). When a transaction is split, the modal hides the main category field + main Save and routes edits through the split editor to avoid category/rollup desync. `0007_transaction_splits.sql` applied and the manual smoke test passed 2026-07-18.
+
+**Recurring detection (Plan 9):** detects recurring charges and surfaces them in a "Detected recurring" section on `/bills`. Pure detector `lib/finance/recurring.ts`: groups trailing-**13-month** expenses (raw parents, `Transfer` excluded) by normalized merchant key (`normalizeMerchant`: lowercase, collapse whitespace, strip one trailing digit run), classifies the median interval into cadence bands (weekly 5–9d, monthly 28–33d, quarterly 85–95d, yearly 350–380d; occurrence floors 3/3/3/2) with ±20% interval and ±30% amount guards, and emits `RecurringCandidate`s (median amount, due-day/month guesses, modal category) sorted by monthly impact — `today` is a parameter, never the clock. Pure `matchCandidates` buckets tracked > dismissed > open; tracked = exact `bills.merchant_name` link (stamped on promote, normalized key) or fuzzy bill-name substring fallback (**names under 4 chars never fuzzy-match**). Migration `0008_recurring_detection.sql`: `bills.merchant_name` + `recurring_dismissals` (unique user/merchant, RLS owner). Actions: `dismissRecurring`/`restoreRecurring` (upsert-ignore for idempotent dismiss); `saveBill` takes optional `merchant_name` written **only when present** (edits never wipe links). UI: `components/bills/detected-recurring.tsx` (Track-as-bill opens `BillForm` via its new optional `prefill` prop; Dismiss/Restore with collapsed disclosure); detection recomputed per page load, no stored results. `monthlyCost` now delegates to the extracted `monthlyEquivalent(amount, frequency)`.
+
+**Fixed-vs-variable rollup (Plan 8):** a dashboard card contrasting **committed** recurring cost (bills, normalized to $/mo via `Σ monthlyCost` — same figure as the bills page summary) with **variable** spend (this month's actual expenses from **exploded** rows, excluding `Transfer` and `Bills & Utilities`), plus a "committed = X% of this month's income" caption (hidden when income ≤ 0). Pure logic in `lib/finance/fixed-variable.ts` (`totalCommittedMonthly`/`variableSpend`/`committedShareOfIncome`, unit-tested); presentational server component `components/dashboard/fixed-variable-card.tsx` (figures-first layout: two figures, proportion bar + legend, conditional caption, "Manage bills →"); wired as the fifth dashboard widget with **zero new queries**. The two lenses deliberately don't partition one total: excluding only `Bills & Utilities` is a spec-accepted YAGNI choice, so a bill categorized elsewhere (e.g. Entertainment) counts in committed **and** its transaction counts in variable — a known limitation, not a bug.
+
+## Plans
+
+Multi-step work is tracked as numbered plans in `docs/superpowers/plans/`. Use the `superpowers:executing-plans` or `superpowers:subagent-driven-development` skill when implementing a plan. Current plans:
+
+- Plan 1 — Plaid serverless backend (`2026-05-24-plaid-serverless-backend.md`) — **complete, then retired 2026-08-13**. Superseded by Plan 4, which re-implemented all three endpoints as Route Handlers inside the web app; `finance-tracker/backend/` was deleted as dead code. The plan doc is kept as a historical record — do not implement it.
+- Plan 2 — iOS app foundation (`2026-05-24-ios-app-foundation.md`) — **superseded** (switching to web app)
+- Plan 3 — Web app foundation (`2026-06-11-web-app-foundation.md`) — **complete** (auth, schema + RLS, app shell, finance-logic library; migration applied to the Supabase project and magic-link smoke test passed 2026-06-13)
+- Plan 4 — Plaid bank sync (`2026-06-13-plaid-bank-sync.md`) — **complete** (Route Handlers, encrypted token storage, full delta sync, Connect Bank/Sync UI; `0002_plaid.sql` applied and sandbox smoke test passed 2026-06-13)
+- Plan 5 — Feature pages (decomposed): 5a Transactions (`2026-06-13-transactions-page.md`) **complete**; 5b Budgets (`2026-06-13-budgets-page.md`) **complete**; 5c Goals (`2026-06-21-goals-page.md`) **complete** (merged to main); 5d Bills (`2026-06-21-bills-page.md`) **complete** (recurring bills, all four frequencies, auto-resetting paid status, monthly-cost summary, CRUD; `0004_bills_scheduling.sql` applied and manual smoke test passed 2026-06-24); **5e Dashboard + cashflow charts** (`2026-06-26-dashboard-cashflow.md`) **complete** (net worth + this-month cashflow summary, custom-SVG income/expense/net chart with 6/12-month toggle, live budget/goals/bills/recent-transactions widgets; pure logic in `lib/finance/cashflow.ts`). **Plan 5 complete.**
+- Plan 6 — Daily auto-sync (`2026-06-28-daily-sync.md`) — **complete (code) / merged to main 2026-06-28**. Reusable `lib/plaid/sync-items.ts` (`syncPlaidItems`, per-`item.user_id`, per-item error isolation, stamps `last_synced_at`); manual `/api/sync` route delegates to it (502 preserved on total failure). Service-role `lib/supabase/admin.ts` (`SUPABASE_SERVICE_ROLE_KEY`, RLS-bypass, server/script-only) drives a headless `scripts/daily-sync.ts` (run via `tsx` + `node --env-file`; `npm run sync:daily`), scheduled by `scripts/setup-daily-sync.ps1` (Windows Task Scheduler). Migration `0006_plaid_last_synced.sql` adds `plaid_items.last_synced_at`; accounts page shows "Last synced X ago" (`lib/finance/relative-time.ts`). Passed multi-agent adversarial review. **Activated 2026-08-01:** `0006` applied, `SUPABASE_SERVICE_ROLE_KEY` (sb_secret_) set in `.env.local` (gitignored — never committed), `sync:daily` smoke test green (1/1 items, exit 0), and the `FinanceTrackerDailySync` scheduled task registered (daily 06:00, `-StartWhenAvailable -WakeToRun`) and live-tested via `schtasks /run` (Last Result 0, log written). Reverses the 2026-07-14 manual-only decision — user now runs once-a-day auto-sync (<10 items, no Plaid cost). **Machine must be on/awake at 06:00** or the catch-up runs at next wake.
+- Plan 7 — Transaction splitting (`2026-07-15-transaction-splitting.md`) — **complete / merged to main** (`0007_transaction_splits.sql` applied and manual smoke test passed 2026-07-18). Child `transaction_splits` table + `SPLIT_CATEGORY` sentinel; pure `explodeSplits`/`splitTotal`/`splitsMatchParent` (`lib/finance/split.ts`); `saveTransactionSplits`/`removeTransactionSplits` actions; `fetchSplitsFor` explodes rows into dashboard + budgets rollups (tested rollup libs untouched); `/transactions` "Split (N)" display + filter-by-part + edit-modal split editor. Six TDD tasks, each task-reviewed; whole-branch review (opus) caught + fixed a split-txn modal desync. `npm run build` + full vitest (157) green.
+- Plan 8 — Fixed-vs-variable rollup (`2026-07-18-fixed-variable-rollup.md`, spec `2026-07-18-fixed-variable-rollup-design.md`) — **complete / merged to main 2026-07-19**. Dashboard card: committed $/mo (bills) vs. variable spend (exploded transactions minus `Transfer`/`Bills & Utilities`) + share-of-income caption; pure `lib/finance/fixed-variable.ts` + `components/dashboard/fixed-variable-card.tsx`, zero new queries, no migration. Three SDD tasks, each task-reviewed; final whole-branch review (opus): ready to merge, one cosmetic legend-rounding fix folded in. Build + full vitest (168) green; manual smoke test passed 2026-07-19. **Plan 8 complete.**
+- Plan 9 — Recurring detection (`2026-07-19-recurring-detection.md`, spec `2026-07-19-recurring-detection-design.md`) — **complete / merged to main 2026-07-19** (fast-forward, full vitest 190 green on merged main). Pure detector + matcher (`lib/finance/recurring.ts`, 21 tests), migration `0008`, dismiss/restore actions + `saveBill` merchant link, `/bills` Detected-recurring section with prefilled Track-as-bill. Four SDD tasks, each task-reviewed; final whole-branch review (opus): ready to merge, one fuzzy-match hardening (4-char minimum) folded in. `0008` applied to the Supabase project; manual smoke test (plan Task 4 step 6, all six checks including the bill-rename case) passed 2026-08-09.

@@ -5,3 +5,8 @@
 !/.github/
 !/docs/
 !/finance-tracker/
+
+# Project instructions for coding agents. These are the same document —
+# AGENTS.md is the Codex-facing copy. Edit both together, always.
+!/CLAUDE.md
+!/AGENTS.md
