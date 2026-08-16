@@ -3,6 +3,7 @@ import {
   reconstructBalances,
   netWorthSeries,
   netWorthDelta,
+  netWorthRuns,
   type BalanceSnapshot,
   type NetWorthPoint,
 } from './net-worth-history'
@@ -107,6 +108,44 @@ describe('netWorthSeries', () => {
   it('ignores snapshots for accounts that no longer exist', () => {
     const out = netWorthSeries([snap({ account_id: 'gone', balance: 999 })], accounts)
     expect(out).toEqual([])
+  })
+})
+
+describe('netWorthRuns', () => {
+  const obs = (as_of: string, net_worth = 0): NetWorthPoint => ({ as_of, net_worth, source: 'observed' })
+  const recon = (as_of: string, net_worth = 0): NetWorthPoint => ({ as_of, net_worth, source: 'reconstructed' })
+
+  it('returns a single run when there are zero reconstructed points', () => {
+    const points = [obs('2026-08-01'), obs('2026-08-02'), obs('2026-08-03')]
+    const runs = netWorthRuns(points)
+    expect(runs).toEqual([{ source: 'observed', indices: [0, 1, 2] }])
+  })
+
+  it('returns a single run when every point is reconstructed', () => {
+    const points = [recon('2026-06-30'), recon('2026-07-31')]
+    const runs = netWorthRuns(points)
+    expect(runs).toEqual([{ source: 'reconstructed', indices: [0, 1] }])
+  })
+
+  it('splits interleaved sources into contiguous runs that share boundary indices', () => {
+    // observed, observed, reconstructed, observed — a staggered
+    // account-connection scenario, not just leading reconstructed history.
+    const points = [obs('2026-08-01'), obs('2026-08-02'), recon('2026-08-03'), obs('2026-08-04')]
+    const runs = netWorthRuns(points)
+    expect(runs).toEqual([
+      { source: 'observed', indices: [0, 1] },
+      { source: 'reconstructed', indices: [1, 2] },
+      { source: 'observed', indices: [2, 3] },
+    ])
+  })
+
+  it('does not crash and returns one run for a single point', () => {
+    const runs = netWorthRuns([obs('2026-08-01')])
+    expect(runs).toEqual([{ source: 'observed', indices: [0] }])
+  })
+
+  it('returns no runs for an empty series', () => {
+    expect(netWorthRuns([])).toEqual([])
   })
 })
 

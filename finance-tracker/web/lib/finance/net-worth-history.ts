@@ -121,6 +121,43 @@ export function netWorthSeries(
  * returned `days` is the true span measured, which may be shorter than
  * requested when collection only started recently.
  */
+export interface NetWorthRun {
+  source: SnapshotSource
+  indices: number[]
+}
+
+/**
+ * Splits a net worth series into contiguous same-source runs for rendering
+ * as separate polylines (solid for observed, dashed for reconstructed).
+ *
+ * `netWorthSeries` merges snapshots per-date across accounts and marks a
+ * date reconstructed if ANY contributing account's snapshot is — it does
+ * NOT guarantee reconstructed dates all sort before observed ones. A
+ * staggered account-connection scenario (a newly-linked account gets
+ * backfilled while an existing account has weeks of observed history) can
+ * produce a reconstructed date interleaved after already-observed dates.
+ * Splitting on a single boundary index would then mis-render genuinely
+ * observed points as part of the dashed run. Grouping by contiguous runs
+ * of the point's own `source` avoids that regardless of ordering.
+ *
+ * Each run after the first repeats the last index of the previous run so
+ * adjacent runs share a coordinate and the rendered lines meet without a
+ * gap. Indices refer to positions in the original `points` array, so
+ * callers can map them straight back to x-coordinates.
+ */
+export function netWorthRuns(points: NetWorthPoint[]): NetWorthRun[] {
+  const runs: NetWorthRun[] = []
+  points.forEach((p, i) => {
+    const last = runs[runs.length - 1]
+    if (last && last.source === p.source) {
+      last.indices.push(i)
+    } else {
+      runs.push({ source: p.source, indices: i > 0 ? [i - 1, i] : [i] })
+    }
+  })
+  return runs
+}
+
 export function netWorthDelta(series: NetWorthPoint[], days: number): NetWorthDelta | null {
   const observed = series.filter((p) => p.source === 'observed')
   if (observed.length < 2) return null

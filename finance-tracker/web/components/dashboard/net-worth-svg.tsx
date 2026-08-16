@@ -1,6 +1,6 @@
 'use client'
 
-import type { NetWorthPoint } from '@/lib/finance/net-worth-history'
+import { netWorthRuns, type NetWorthPoint } from '@/lib/finance/net-worth-history'
 import {
   VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd,
 } from '@/components/dashboard/chart-geometry'
@@ -17,13 +17,14 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
   const y = (v: number) => PLOT_TOP + ((max - v) / range) * PLOT_H
   const slotW = (VB_W - PAD * 2) / Math.max(points.length - 1, 1)
   const x = (i: number) => PAD + slotW * i
+  const pt = (i: number) => `${x(i)},${y(points[i].net_worth)}`
 
-  // Split at the LAST reconstructed point; it is shared by both polylines so
-  // the dashed and solid runs meet rather than leaving a gap.
-  const lastRecon = points.reduce((acc, p, i) => (p.source === 'reconstructed' ? i : acc), -1)
-  const pt = (p: NetWorthPoint, i: number) => `${x(i)},${y(p.net_worth)}`
-  const reconPoints = lastRecon >= 0 ? points.slice(0, lastRecon + 1).map(pt).join(' ') : ''
-  const obsPoints = points.slice(Math.max(lastRecon, 0)).map((p, i) => pt(p, i + Math.max(lastRecon, 0))).join(' ')
+  // Contiguous same-source runs, not a single split index — a reconstructed
+  // date is not guaranteed to sort before every observed one (see
+  // netWorthRuns' doc comment for the staggered-account scenario this
+  // guards against).
+  const runs = netWorthRuns(points)
+  const hasReconstructed = points.some((p) => p.source === 'reconstructed')
 
   const latest = points[points.length - 1]
   // One string child only — interleaved expressions break hydration in Next 16.
@@ -50,16 +51,16 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
             strokeWidth={1}
           />
         ))}
-        {reconPoints && (
+        {runs.map((run, i) => (
           <polyline
-            points={reconPoints}
+            key={i}
+            points={run.indices.map(pt).join(' ')}
             fill="none"
-            strokeDasharray="5 4"
             strokeWidth={2}
-            className="stroke-muted-foreground"
+            strokeDasharray={run.source === 'reconstructed' ? '5 4' : undefined}
+            className={run.source === 'reconstructed' ? 'stroke-muted-foreground' : 'stroke-net'}
           />
-        )}
-        <polyline points={obsPoints} fill="none" strokeWidth={2} className="stroke-net" />
+        ))}
         <text x={PAD} y={LABEL_Y} className="fill-muted-foreground text-[11px]">
           {points[0].as_of}
         </text>
@@ -68,7 +69,7 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
         </text>
       </svg>
 
-      {lastRecon >= 0 && (
+      {hasReconstructed && (
         <p className="text-xs text-muted-foreground">
           <span className="mr-1 inline-block h-px w-4 border-t border-dashed border-muted-foreground align-middle" />
           Dashed points are estimated from transaction history, not recorded balances.
