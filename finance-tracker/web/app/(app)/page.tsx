@@ -27,6 +27,10 @@ export default async function DashboardPage() {
   const month = currentMonth()
   const months = trailingMonths(month, 12)
   const windowStart = `${months[0]}-01`
+  // The backfill writes month-ends across 13 months (scripts/backfill-net-worth.ts),
+  // so the oldest reconstructed point predates the transaction window. Snapshots
+  // get their own, wider start — the two queries feed different charts.
+  const snapshotWindowStart = `${trailingMonths(month, 13)[0]}-01`
 
   const supabase = await createClient()
   const [accountsRes, txnsRes, budgetsRes, billsRes, goalsRes, snapshotsRes] = await Promise.all([
@@ -42,7 +46,7 @@ export default async function DashboardPage() {
     supabase
       .from('account_balance_snapshots')
       .select('*')
-      .gte('as_of', windowStart)
+      .gte('as_of', snapshotWindowStart)
       .order('as_of', { ascending: true }),
   ])
   const accounts = (accountsRes.data ?? []) as Account[]
@@ -62,7 +66,11 @@ export default async function DashboardPage() {
   const snapshots = (snapshotsRes.data ?? []) as AccountBalanceSnapshot[]
   const nwSeries = netWorthSeries(snapshots, accounts)
   const delta = netWorthDelta(nwSeries, 30)
-  const firstObserved = nwSeries.find((p) => p.source === 'observed')?.as_of
+  // Dates missing an account are not comparable to dates that have it — plotting
+  // them would spike the line by a newly linked account's whole balance. Charts
+  // show the complete dates only; netWorthDelta applies the same rule itself.
+  const nwPlot = nwSeries.filter((p) => p.complete)
+  const firstObserved = nwPlot.find((p) => p.source === 'observed')?.as_of
 
   return (
     <div className="space-y-4">
@@ -88,13 +96,13 @@ export default async function DashboardPage() {
             </span>
           ) : null}
 
-          <NetWorthSparkline points={nwSeries} />
+          <NetWorthSparkline points={nwPlot} />
         </Card>
 
         <CashflowSummary row={rows[rows.length - 1]} />
       </div>
 
-      <TrendPanel cashflow={rows} netWorth={nwSeries} />
+      <TrendPanel cashflow={rows} netWorth={nwPlot} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <BudgetWidget budgets={budgets} transactions={exploded} year={year} month={mon} />

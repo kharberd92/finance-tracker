@@ -1,6 +1,7 @@
 import type { Account, AccountType, Transaction } from '@/lib/types'
 import { isLiability } from '@/lib/finance/net-worth'
 import { trailingMonths } from '@/lib/finance/cashflow'
+import { shiftMonth } from '@/lib/finance/month'
 
 /** Last calendar day of a 'YYYY-MM' month, as 'YYYY-MM-DD'. */
 function monthEnd(ym: string): string {
@@ -65,6 +66,12 @@ export interface NetWorthPoint {
   as_of: string
   net_worth: number
   source: SnapshotSource
+  /**
+   * False when fewer accounts contributed snapshots to this date than to the
+   * fullest date in the series — the date's net worth is missing at least one
+   * account and is therefore not comparable to a complete one.
+   */
+  complete: boolean
 }
 
 export interface NetWorthDelta {
@@ -88,39 +95,73 @@ function daysBetween(from: string, to: string): number {
  *
  * Snapshots for accounts that no longer exist are dropped: their type is
  * unknown, so their sign would be a guess.
+ *
+ * **Completeness.** Summing whatever rows a date happens to have silently omits
+ * accounts that had no snapshot yet. Connect a credit card on day 22 and days
+ * 1–21 hold checking only: comparing day 1 to day 30 would read the newly
+ * linked account's whole balance as a gain the user never made, and a
+ * re-run backfill dropping month-end rows for the new account inside an
+ * otherwise-daily observed range would render as a sawtooth. So each date
+ * records which accounts contributed, and any date with fewer contributors
+ * than the fullest date in the series is marked `complete: false`. Consumers
+ * exclude those points; nothing here guesses a missing balance.
  */
 export function netWorthSeries(
   snapshots: BalanceSnapshot[],
   accounts: Account[],
 ): NetWorthPoint[] {
   const typeById = new Map(accounts.map((a) => [a.id, a.type]))
-  const byDate = new Map<string, { net_worth: number; source: SnapshotSource }>()
+  const byDate = new Map<
+    string,
+    { net_worth: number; source: SnapshotSource; accountIds: Set<string> }
+  >()
 
   for (const s of snapshots) {
     const type = typeById.get(s.account_id)
     if (!type) continue
     const signed = isLiability(type) ? -s.balance : s.balance
-    const entry = byDate.get(s.as_of) ?? { net_worth: 0, source: 'observed' as SnapshotSource }
+    const entry =
+      byDate.get(s.as_of) ??
+      { net_worth: 0, source: 'observed' as SnapshotSource, accountIds: new Set<string>() }
     entry.net_worth += signed
+    entry.accountIds.add(s.account_id)
     if (s.source === 'reconstructed') entry.source = 'reconstructed'
     byDate.set(s.as_of, entry)
   }
 
+  const widest = Math.max(0, ...[...byDate.values()].map((v) => v.accountIds.size))
+
   return [...byDate.entries()]
-    .map(([as_of, v]) => ({ as_of, ...v }))
+    .map(([as_of, v]) => ({
+      as_of,
+      net_worth: v.net_worth,
+      source: v.source,
+      complete: v.accountIds.size === widest,
+    }))
     .sort((a, b) => a.as_of.localeCompare(b.as_of))
 }
 
 /**
- * Change in net worth across the trailing `days` window, computed from OBSERVED
- * points only. Reconstructed points are excluded by design: they cannot see
- * market moves or interest, so a delta drawn from them would restate cumulative
- * cashflow — the conflation this feature exists to fix.
+ * The points at or after `months` months before the newest point's date.
  *
- * Returns null when fewer than two observed points fall in the window. The
- * returned `days` is the true span measured, which may be shorter than
- * requested when collection only started recently.
+ * A count-based slice cannot work here: observed points are daily and
+ * reconstructed ones are month-end, so any "points per month" heuristic shows
+ * a wildly different span depending on how much observed data has accumulated.
+ * The cutoff day is clamped to the target month's length so a 31st never
+ * rolls forward into the next month.
+ *
+ * Expects `points` sorted ascending by `as_of` (as `netWorthSeries` returns).
  */
+export function sliceTrailingMonths(points: NetWorthPoint[], months: number): NetWorthPoint[] {
+  if (points.length === 0) return []
+  const newest = points[points.length - 1].as_of
+  const targetYm = shiftMonth(newest.slice(0, 7), -months)
+  const lastDay = monthEnd(targetYm).slice(8)
+  const day = newest.slice(8) <= lastDay ? newest.slice(8) : lastDay
+  const cutoff = `${targetYm}-${day}`
+  return points.filter((p) => p.as_of >= cutoff)
+}
+
 export interface NetWorthRun {
   source: SnapshotSource
   indices: number[]
@@ -158,8 +199,23 @@ export function netWorthRuns(points: NetWorthPoint[]): NetWorthRun[] {
   return runs
 }
 
+/**
+ * Change in net worth across the trailing `days` window, computed from OBSERVED,
+ * COMPLETE points only. Reconstructed points are excluded by design: they cannot
+ * see market moves or interest, so a delta drawn from them would restate
+ * cumulative cashflow — the conflation this feature exists to fix. Incomplete
+ * points are excluded for the same reason in a different direction: comparing a
+ * date that is missing an account against one that has it reports linking an
+ * account as a change in wealth.
+ *
+ * Returns null when fewer than two such points fall in the window. The returned
+ * `days` is the true span measured, which may be shorter than requested when
+ * collection only started recently.
+ *
+ * Expects `series` sorted ascending by `as_of` (as `netWorthSeries` returns).
+ */
 export function netWorthDelta(series: NetWorthPoint[], days: number): NetWorthDelta | null {
-  const observed = series.filter((p) => p.source === 'observed')
+  const observed = series.filter((p) => p.source === 'observed' && p.complete)
   if (observed.length < 2) return null
 
   const latest = observed[observed.length - 1]
