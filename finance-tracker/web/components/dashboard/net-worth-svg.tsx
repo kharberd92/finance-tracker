@@ -6,8 +6,22 @@ import {
 } from '@/components/dashboard/chart-geometry'
 
 export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
-  if (points.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No net worth history yet.</p>
+  // A single point has nothing to join, so the chart would render gridlines,
+  // two identical date labels, and no line — indistinguishable from a bug.
+  // Say what is actually happening instead. This is the normal state before a
+  // second daily capture, and whenever reconstruction cannot cover every
+  // account (points missing accounts are dropped upstream as incomplete).
+  if (points.length < 2) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-1 py-10 text-center">
+        <p className="text-sm font-medium text-muted-foreground">Not enough history to chart yet</p>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          {points.length === 1
+            ? `One comparable snapshot so far, from ${points[0].as_of}. The trend appears once the daily sync records another.`
+            : 'The daily sync records one snapshot per day. The trend appears once two have been recorded.'}
+        </p>
+      </div>
+    )
   }
 
   const values = points.map((p) => p.net_worth)
