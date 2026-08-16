@@ -15,8 +15,17 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
   const min = Math.min(0, ...values)
   const range = max - min || 1
   const y = (v: number) => PLOT_TOP + ((max - v) / range) * PLOT_H
-  const slotW = (VB_W - PAD * 2) / Math.max(points.length - 1, 1)
-  const x = (i: number) => PAD + slotW * i
+
+  // Positioned by date, not by index. Observed points are daily and
+  // reconstructed ones are month-end, so even spacing would draw a month-long
+  // move at the same slope as a one-day move — and would hide a gap where the
+  // capture job did not run. Degenerate span (one point, or every point on the
+  // same date) collapses to the left edge.
+  const ms = (as_of: string) => Date.parse(`${as_of}T00:00:00Z`)
+  const t0 = ms(points[0].as_of)
+  const spanMs = ms(points[points.length - 1].as_of) - t0
+  const x = (i: number) =>
+    spanMs === 0 ? PAD : PAD + ((ms(points[i].as_of) - t0) / spanMs) * (VB_W - PAD * 2)
   const pt = (i: number) => `${x(i)},${y(points[i].net_worth)}`
 
   // Contiguous same-source runs, not a single split index — a reconstructed

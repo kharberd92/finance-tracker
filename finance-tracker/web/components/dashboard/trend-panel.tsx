@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { CashflowSvg } from '@/components/dashboard/cashflow-svg'
 import { NetWorthSvg } from '@/components/dashboard/net-worth-svg'
 import type { CashflowMonth } from '@/lib/finance/cashflow'
-import type { NetWorthPoint } from '@/lib/finance/net-worth-history'
+import { sliceTrailingMonths, type NetWorthPoint } from '@/lib/finance/net-worth-history'
 
 const SPANS = [6, 12] as const
 type View = 'cashflow' | 'networth'
@@ -22,9 +22,10 @@ export function TrendPanel({
   const hasHistory = netWorth.length > 0
   const showingCashflow = view === 'cashflow' || !hasHistory
 
-  // Observed points are daily and reconstructed ones are month-end, so an
-  // exact month count would cut the two sources differently. Approximate.
-  const shownNetWorth = netWorth.slice(Math.max(0, netWorth.length - span * 2))
+  // Sliced by date, not by count: observed points are daily and reconstructed
+  // ones are month-end, so any points-per-month heuristic would show a span
+  // unrelated to the button that was pressed.
+  const shownNetWorth = sliceTrailingMonths(netWorth, span)
 
   return (
     <Card className="space-y-3 p-4">
