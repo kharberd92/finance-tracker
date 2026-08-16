@@ -1,4 +1,4 @@
-import type { AccountType, Transaction } from '@/lib/types'
+import type { Account, AccountType, Transaction } from '@/lib/types'
 import { isLiability } from '@/lib/finance/net-worth'
 import { trailingMonths } from '@/lib/finance/cashflow'
 
@@ -50,4 +50,90 @@ export function reconstructBalances(
       .reduce((sum, t) => sum + t.amount, 0)
     return { as_of, balance: currentBalance + sign * after }
   })
+}
+
+export type SnapshotSource = 'observed' | 'reconstructed'
+
+export interface BalanceSnapshot {
+  account_id: string
+  as_of: string
+  balance: number
+  source: SnapshotSource
+}
+
+export interface NetWorthPoint {
+  as_of: string
+  net_worth: number
+  source: SnapshotSource
+}
+
+export interface NetWorthDelta {
+  change: number
+  fromDate: string
+  toDate: string
+  days: number
+}
+
+/** Whole days between two 'YYYY-MM-DD' dates. */
+function daysBetween(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)
+  return Math.round(ms / 86_400_000)
+}
+
+/**
+ * Rolls per-account balance snapshots into a net worth series, applying the
+ * same liability rule `netWorth()` uses. A date is marked 'reconstructed' when
+ * ANY contributing account balance is reconstructed — a point is only as
+ * trustworthy as its weakest input.
+ *
+ * Snapshots for accounts that no longer exist are dropped: their type is
+ * unknown, so their sign would be a guess.
+ */
+export function netWorthSeries(
+  snapshots: BalanceSnapshot[],
+  accounts: Account[],
+): NetWorthPoint[] {
+  const typeById = new Map(accounts.map((a) => [a.id, a.type]))
+  const byDate = new Map<string, { net_worth: number; source: SnapshotSource }>()
+
+  for (const s of snapshots) {
+    const type = typeById.get(s.account_id)
+    if (!type) continue
+    const signed = isLiability(type) ? -s.balance : s.balance
+    const entry = byDate.get(s.as_of) ?? { net_worth: 0, source: 'observed' as SnapshotSource }
+    entry.net_worth += signed
+    if (s.source === 'reconstructed') entry.source = 'reconstructed'
+    byDate.set(s.as_of, entry)
+  }
+
+  return [...byDate.entries()]
+    .map(([as_of, v]) => ({ as_of, ...v }))
+    .sort((a, b) => a.as_of.localeCompare(b.as_of))
+}
+
+/**
+ * Change in net worth across the trailing `days` window, computed from OBSERVED
+ * points only. Reconstructed points are excluded by design: they cannot see
+ * market moves or interest, so a delta drawn from them would restate cumulative
+ * cashflow — the conflation this feature exists to fix.
+ *
+ * Returns null when fewer than two observed points fall in the window. The
+ * returned `days` is the true span measured, which may be shorter than
+ * requested when collection only started recently.
+ */
+export function netWorthDelta(series: NetWorthPoint[], days: number): NetWorthDelta | null {
+  const observed = series.filter((p) => p.source === 'observed')
+  if (observed.length < 2) return null
+
+  const latest = observed[observed.length - 1]
+  const cutoff = observed.filter((p) => daysBetween(p.as_of, latest.as_of) <= days)
+  if (cutoff.length < 2) return null
+
+  const earliest = cutoff[0]
+  return {
+    change: latest.net_worth - earliest.net_worth,
+    fromDate: earliest.as_of,
+    toDate: latest.as_of,
+    days: daysBetween(earliest.as_of, latest.as_of),
+  }
 }
