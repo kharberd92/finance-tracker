@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { netWorth } from '@/lib/finance/net-worth'
 import { trailingMonths, monthlyCashflow } from '@/lib/finance/cashflow'
+import { netWorthSeries, netWorthDelta } from '@/lib/finance/net-worth-history'
 import { Card } from '@/components/ui/card'
 import { CashflowSummary } from '@/components/dashboard/cashflow-summary'
 import { TrendPanel } from '@/components/dashboard/trend-panel'
@@ -9,9 +10,10 @@ import { GoalsWidget } from '@/components/dashboard/goals-widget'
 import { BillsWidget } from '@/components/dashboard/bills-widget'
 import { RecentTransactionsWidget } from '@/components/dashboard/recent-transactions-widget'
 import { FixedVariableCard } from '@/components/dashboard/fixed-variable-card'
+import { NetWorthSparkline } from '@/components/dashboard/net-worth-sparkline'
 import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
 import { explodeSplits } from '@/lib/finance/split'
-import type { Account, Transaction, Budget, Bill, Goal } from '@/lib/types'
+import type { Account, Transaction, Budget, Bill, Goal, AccountBalanceSnapshot } from '@/lib/types'
 
 function currentMonth(): string {
   const d = new Date()
@@ -27,7 +29,7 @@ export default async function DashboardPage() {
   const windowStart = `${months[0]}-01`
 
   const supabase = await createClient()
-  const [accountsRes, txnsRes, budgetsRes, billsRes, goalsRes] = await Promise.all([
+  const [accountsRes, txnsRes, budgetsRes, billsRes, goalsRes, snapshotsRes] = await Promise.all([
     supabase.from('accounts').select('*'),
     supabase
       .from('transactions')
@@ -37,6 +39,11 @@ export default async function DashboardPage() {
     supabase.from('budgets').select('*').order('category'),
     supabase.from('bills').select('*'),
     supabase.from('goals').select('*').order('name'),
+    supabase
+      .from('account_balance_snapshots')
+      .select('*')
+      .gte('as_of', windowStart)
+      .order('as_of', { ascending: true }),
   ])
   const accounts = (accountsRes.data ?? []) as Account[]
   const transactions = (txnsRes.data ?? []) as Transaction[]
@@ -52,9 +59,10 @@ export default async function DashboardPage() {
   const now = new Date()
   const [year, mon] = month.split('-').map(Number)
 
-  const lastNet = rows[rows.length - 1]?.net ?? 0
-  const netLabel =
-    lastNet >= 0 ? `▲ this month +${usd(lastNet)}` : `▼ this month ${usd(Math.abs(lastNet))}`
+  const snapshots = (snapshotsRes.data ?? []) as AccountBalanceSnapshot[]
+  const nwSeries = netWorthSeries(snapshots, accounts)
+  const delta = netWorthDelta(nwSeries, 30)
+  const firstObserved = nwSeries.find((p) => p.source === 'observed')?.as_of
 
   return (
     <div className="space-y-4">
@@ -64,19 +72,29 @@ export default async function DashboardPage() {
           <p className="mt-1 text-3xl font-bold tabular-nums">
             {total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
           </p>
-          <span
-            className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${
-              lastNet >= 0 ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'
-            }`}
-          >
-            {netLabel}
-          </span>
+          {delta ? (
+            <span
+              className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${
+                delta.change >= 0 ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'
+              }`}
+            >
+              {delta.change >= 0
+                ? `▲ past ${delta.days} days +${usd(delta.change)}`
+                : `▼ past ${delta.days} days ${usd(Math.abs(delta.change))}`}
+            </span>
+          ) : firstObserved ? (
+            <span className="mt-2 inline-block text-xs text-muted-foreground">
+              {`collecting since ${firstObserved}`}
+            </span>
+          ) : null}
+
+          <NetWorthSparkline points={nwSeries} />
         </Card>
 
         <CashflowSummary row={rows[rows.length - 1]} />
       </div>
 
-      <TrendPanel cashflow={rows} />
+      <TrendPanel cashflow={rows} netWorth={nwSeries} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <BudgetWidget budgets={budgets} transactions={exploded} year={year} month={mon} />
