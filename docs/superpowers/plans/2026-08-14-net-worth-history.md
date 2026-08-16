@@ -1049,7 +1049,13 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
 
 - [ ] **Step 2: Add the view toggle to `TrendPanel`**
 
-Modify `components/dashboard/trend-panel.tsx` so it accepts net worth points and switches views. The net worth option is omitted entirely when there is no history:
+Modify `components/dashboard/trend-panel.tsx` so it accepts net worth points and switches views.
+
+**Three things about the real component that Task 5 preserved and this step must respect** (the plan's earlier sample was written before they were visible):
+
+1. There is an `<h2 className="font-medium">Cashflow</h2>` heading in the header row. When history exists the view toggle takes its place; with no history it stays as the heading.
+2. The span control's wrapper is `flex rounded-lg bg-muted p-0.5 text-xs` — a segmented-control pill, not a bare flex row. The view toggle uses the same wrapper so the two controls match. **Do not restyle the span control.**
+3. There is an Income / Expense / Net legend below the chart. It describes the cashflow bars only and **must not render in the net worth view**, where it would be actively misleading.
 
 ```tsx
 'use client'
@@ -1074,18 +1080,17 @@ export function TrendPanel({
   const [span, setSpan] = useState<6 | 12>(6)
   const [view, setView] = useState<View>('cashflow')
   const hasHistory = netWorth.length > 0
+  const showingCashflow = view === 'cashflow' || !hasHistory
 
-  // Approximate a month as 30 days for the span filter — points are month-end
-  // for reconstructed data and daily for observed, so an exact month count
-  // would cut the two sources differently.
-  const cutoffIndex = Math.max(0, netWorth.length - span * 2)
-  const shownNetWorth = netWorth.slice(cutoffIndex)
+  // Observed points are daily and reconstructed ones are month-end, so an
+  // exact month count would cut the two sources differently. Approximate.
+  const shownNetWorth = netWorth.slice(Math.max(0, netWorth.length - span * 2))
 
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         {hasHistory ? (
-          <div className="flex gap-1 text-xs">
+          <div className="flex rounded-lg bg-muted p-0.5 text-xs">
             {(['cashflow', 'networth'] as const).map((v) => (
               <button
                 key={v}
@@ -1100,10 +1105,10 @@ export function TrendPanel({
             ))}
           </div>
         ) : (
-          <span className="text-xs font-medium text-muted-foreground">Cashflow</span>
+          <h2 className="font-medium">Cashflow</h2>
         )}
 
-        <div className="flex gap-1 text-xs">
+        <div className="flex rounded-lg bg-muted p-0.5 text-xs">
           {SPANS.map((s) => (
             <button
               key={s}
@@ -1119,16 +1124,29 @@ export function TrendPanel({
         </div>
       </div>
 
-      {view === 'cashflow' || !hasHistory ? (
+      {showingCashflow ? (
         <CashflowSvg rows={cashflow.slice(-span)} />
       ) : (
         <NetWorthSvg points={shownNetWorth} />
+      )}
+
+      {showingCashflow && (
+        <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-sm bg-income" /> Income
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-sm bg-expense" /> Expense
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-px w-3 bg-net" /> Net
+          </span>
+        </div>
       )}
     </Card>
   )
 }
 ```
-
 - [ ] **Step 3: Build the sparkline**
 
 Create `components/dashboard/net-worth-sparkline.tsx`:
