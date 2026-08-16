@@ -38,7 +38,7 @@ export default async function AccountsPage() {
       ) : (
         <div className="space-y-2">
           {accounts.map((a) => (
-            <Card key={a.id} className="flex items-center justify-between p-4">
+            <Card key={a.id} className="flex flex-row items-center justify-between p-4">
               <div>
                 <p className="font-medium">{a.name}</p>
                 <p className="text-sm text-muted-foreground capitalize">

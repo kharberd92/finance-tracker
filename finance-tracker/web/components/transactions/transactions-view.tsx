@@ -130,7 +130,7 @@ export function TransactionsView({
           {filtered.map((t) => (
             <Card
               key={t.id}
-              className="flex cursor-pointer items-center justify-between p-3"
+              className="flex cursor-pointer flex-row items-center justify-between p-3"
               onClick={() => setEditing(t)}
             >
               <div className="flex flex-col">

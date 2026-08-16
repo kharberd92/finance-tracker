@@ -64,7 +64,7 @@ export function DetectedRecurring({
       ) : (
         <>
           {open.map((c) => (
-            <Card key={c.merchantKey} className="flex items-center justify-between p-4">
+            <Card key={c.merchantKey} className="flex flex-row items-center justify-between p-4">
               <div>
                 <span className="font-medium">{c.displayName}</span>
                 <p className="text-xs text-muted-foreground">
@@ -100,7 +100,7 @@ export function DetectedRecurring({
               {showDismissed && (
                 <div className="mt-2 space-y-2">
                   {dismissed.map((c) => (
-                    <Card key={c.merchantKey} className="flex items-center justify-between p-3">
+                    <Card key={c.merchantKey} className="flex flex-row items-center justify-between p-3">
                       <span className="text-sm text-muted-foreground">
                         {c.displayName} · {usd(c.amount)} · {c.frequency}
                       </span>
