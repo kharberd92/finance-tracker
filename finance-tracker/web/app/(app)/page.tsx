@@ -3,7 +3,7 @@ import { netWorth } from '@/lib/finance/net-worth'
 import { trailingMonths, monthlyCashflow } from '@/lib/finance/cashflow'
 import { Card } from '@/components/ui/card'
 import { CashflowSummary } from '@/components/dashboard/cashflow-summary'
-import { CashflowChart } from '@/components/dashboard/cashflow-chart'
+import { TrendPanel } from '@/components/dashboard/trend-panel'
 import { BudgetWidget } from '@/components/dashboard/budget-widget'
 import { GoalsWidget } from '@/components/dashboard/goals-widget'
 import { BillsWidget } from '@/components/dashboard/bills-widget'
@@ -76,7 +76,7 @@ export default async function DashboardPage() {
         <CashflowSummary row={rows[rows.length - 1]} />
       </div>
 
-      <CashflowChart rows={rows} />
+      <TrendPanel cashflow={rows} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <BudgetWidget budgets={budgets} transactions={exploded} year={year} month={mon} />
