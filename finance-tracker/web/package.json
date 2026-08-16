@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sync:daily": "node --env-file=.env.local --import tsx scripts/daily-sync.ts",
-    "dev:login": "node --env-file=.env.local --import tsx scripts/dev-login-link.ts"
+    "dev:login": "node --env-file=.env.local --import tsx scripts/dev-login-link.ts",
+    "backfill:networth": "node --env-file=.env.local --import tsx scripts/backfill-net-worth.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
