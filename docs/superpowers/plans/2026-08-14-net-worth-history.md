@@ -31,6 +31,7 @@
 - `lib/finance/net-worth-history.test.ts` — its unit tests (Tasks 1, 2)
 - `supabase/migrations/0009_net_worth_history.sql` — table, RLS, index (Task 3)
 - `scripts/backfill-net-worth.ts` — one-time reconstruction script (Task 4)
+- `components/dashboard/chart-geometry.ts` — shared viewBox constants + `usd` (Task 5)
 - `components/dashboard/cashflow-svg.tsx` — presentational cashflow SVG, extracted (Task 5)
 - `components/dashboard/trend-panel.tsx` — Card shell, view toggle, span control (Task 5)
 - `components/dashboard/net-worth-svg.tsx` — presentational net worth SVG (Task 6)
@@ -792,24 +793,64 @@ git commit -m "feat(web): add one-time net worth backfill script"
 Pure refactor — no behavior change. The dashboard must look and behave identically when this task ends. Splitting it out means Task 6 adds a view rather than rewriting a chart.
 
 **Files:**
-- Create: `components/dashboard/cashflow-svg.tsx`, `components/dashboard/trend-panel.tsx`
+- Create: `components/dashboard/chart-geometry.ts`, `components/dashboard/cashflow-svg.tsx`, `components/dashboard/trend-panel.tsx`
 - Delete: `components/dashboard/cashflow-chart.tsx`
 - Modify: `app/(app)/page.tsx`
 
 **Interfaces:**
 - Consumes: `CashflowMonth`, `cashflowDomain` from `@/lib/finance/cashflow`.
-- Produces: `CashflowSvg({ rows }: { rows: CashflowMonth[] })`; `TrendPanel({ cashflow }: { cashflow: CashflowMonth[] })`.
+- Produces: the `chart-geometry` constants below; `CashflowSvg({ rows }: { rows: CashflowMonth[] })`; `TrendPanel({ cashflow }: { cashflow: CashflowMonth[] })`.
 
-- [ ] **Step 1: Create the presentational SVG**
+- [ ] **Step 1: Create the shared chart geometry module**
 
-Create `components/dashboard/cashflow-svg.tsx`. Move the whole `<svg>…</svg>` body and every layout constant (`VB_W`, `VB_H`, `PAD`, `PLOT_TOP`, `PLOT_H`, `LABEL_Y`, `BAR_W`, `BAR_GAP`, `MONTH_ABBR`, `usd`, `monthLabel`, `gridFractions`) out of `cashflow-chart.tsx` verbatim. The component takes already-sliced rows and renders only the SVG — no Card, no span control:
+Both charts swap into the same panel at the same size, so they must share one
+coordinate system — duplicated constants would let them silently drift apart.
+
+Create `components/dashboard/chart-geometry.ts`:
+
+```ts
+/**
+ * Shared coordinate system for the dashboard trend charts. The cashflow and
+ * net worth SVGs render into the same panel slot, so they must agree on the
+ * viewBox and plot band exactly — these values are defined once, here.
+ */
+export const VB_W = 760
+export const VB_H = 185
+export const PAD = 20
+export const PLOT_TOP = 15
+export const PLOT_H = 125 // zero line lands at y=140 when the domain minimum is 0
+export const LABEL_Y = 166
+
+/** Gridline positions as fractions of the plot band, top to bottom. */
+export const GRID_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
+
+export const usd = (n: number) =>
+  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+```
+
+- [ ] **Step 2: Create the presentational SVG**
+
+Create `components/dashboard/cashflow-svg.tsx`. Move the whole `<svg>…</svg>` body out of `cashflow-chart.tsx` verbatim. Geometry constants (`VB_W`, `VB_H`, `PAD`, `PLOT_TOP`, `PLOT_H`, `LABEL_Y`), `usd`, and the gridline fractions now come from `chart-geometry` — **do not redeclare them here**. The cashflow-only constants (`BAR_W`, `BAR_GAP`, `MONTH_ABBR`) and the `monthLabel` helper stay local to this file, since the net worth chart has no bars or month labels. Replace the local `gridFractions` array with the imported `GRID_FRACTIONS`.
+
+The component takes already-sliced rows and renders only the SVG — no Card, no span control:
 
 ```tsx
 'use client'
 
 import { cashflowDomain, type CashflowMonth } from '@/lib/finance/cashflow'
+import {
+  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd,
+} from '@/components/dashboard/chart-geometry'
 
-// ...constants and helpers moved verbatim from cashflow-chart.tsx...
+const BAR_W = 22
+const BAR_GAP = 6
+const MONTH_ABBR = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+function monthLabel(ym: string): string {
+  return MONTH_ABBR[Number(ym.slice(5)) - 1] ?? ym
+}
 
 export function CashflowSvg({ rows }: { rows: CashflowMonth[] }) {
   // ...domain/scale math moved verbatim, operating on `rows`...
@@ -827,7 +868,7 @@ export function CashflowSvg({ rows }: { rows: CashflowMonth[] }) {
 }
 ```
 
-- [ ] **Step 2: Create the panel shell**
+- [ ] **Step 3: Create the panel shell**
 
 Create `components/dashboard/trend-panel.tsx`:
 
@@ -869,7 +910,7 @@ export function TrendPanel({ cashflow }: { cashflow: CashflowMonth[] }) {
 }
 ```
 
-- [ ] **Step 3: Swap the dashboard over**
+- [ ] **Step 4: Swap the dashboard over**
 
 In `app/(app)/page.tsx`, replace the `CashflowChart` import with `TrendPanel`:
 
@@ -883,13 +924,13 @@ and replace the usage:
       <TrendPanel cashflow={rows} />
 ```
 
-- [ ] **Step 4: Delete the old component**
+- [ ] **Step 5: Delete the old component**
 
 ```bash
 git rm components/dashboard/cashflow-chart.tsx
 ```
 
-- [ ] **Step 5: Verify no behavior changed**
+- [ ] **Step 6: Verify no behavior changed**
 
 Run: `npx vitest run && npm run build && npx tsc --noEmit`
 Expected: all green, no references to `cashflow-chart` remain.
@@ -899,7 +940,7 @@ Expected: no matches.
 
 Then start `npm run dev` and confirm the dashboard chart renders identically — same bars, same 6M/12M toggle behavior.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -922,20 +963,15 @@ git commit -m "refactor(web): split the cashflow chart into an SVG and a panel s
 
 Create `components/dashboard/net-worth-svg.tsx`. Reconstructed and observed segments draw as two separate polylines so the dashed run is visually distinct, and they share the point at the handoff so the line is continuous:
 
+Geometry and `usd` come from the shared `chart-geometry` module created in Task 5 — **do not redeclare them**. The two charts occupy the same panel slot and must agree on the coordinate system exactly.
+
 ```tsx
 'use client'
 
 import type { NetWorthPoint } from '@/lib/finance/net-worth-history'
-
-const VB_W = 760
-const VB_H = 185
-const PAD = 20
-const PLOT_TOP = 15
-const PLOT_H = 125
-const LABEL_Y = 166
-
-const usd = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+import {
+  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd,
+} from '@/components/dashboard/chart-geometry'
 
 export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
   if (points.length === 0) {
@@ -971,7 +1007,7 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
         aria-label="Net worth over time"
       >
         <title>{caption}</title>
-        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+        {GRID_FRACTIONS.map((f) => (
           <line
             key={f}
             x1={PAD}
