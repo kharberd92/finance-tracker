@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { syncPlaidItems } from './sync-items'
+import { syncPlaidItems, snapshotRows } from './sync-items'
 import { createSupabaseMock, createQueryStub } from './test-helpers'
 import { encryptToken } from './crypto'
-import type { PlaidItem } from '@/lib/types'
+import type { PlaidItem, Account } from '@/lib/types'
 
 function makeItem(over: Partial<PlaidItem> = {}): PlaidItem {
   return {
@@ -114,5 +114,30 @@ describe('syncPlaidItems', () => {
     const updatePayload = txStub.update.mock.calls[0][0] as Record<string, unknown>
     expect(updatePayload).not.toHaveProperty('category')
     expect(updatePayload).toHaveProperty('amount')
+  })
+})
+
+function acct(partial: Partial<Account>): Account {
+  return {
+    id: 'a', user_id: 'u', name: 'Checking', type: 'checking',
+    current_balance: 100, institution_name: 'Bank', ...partial,
+  }
+}
+
+describe('snapshotRows', () => {
+  it('builds one observed row per account at the given date', () => {
+    const rows = snapshotRows([acct({ id: 'a', current_balance: 100 })], '2026-08-14')
+    expect(rows).toEqual([
+      { user_id: 'u', account_id: 'a', as_of: '2026-08-14', balance: 100, source: 'observed' },
+    ])
+  })
+
+  it('includes manual (non-Plaid) accounts', () => {
+    const rows = snapshotRows([acct({ id: 'm', plaid_account_id: null })], '2026-08-14')
+    expect(rows).toHaveLength(1)
+  })
+
+  it('returns an empty array for no accounts', () => {
+    expect(snapshotRows([], '2026-08-14')).toEqual([])
   })
 })

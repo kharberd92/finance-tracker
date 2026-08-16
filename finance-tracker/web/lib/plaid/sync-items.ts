@@ -3,7 +3,7 @@ import type { PlaidApi } from 'plaid'
 import { decryptToken } from '@/lib/plaid/crypto'
 import { mapAccount, mapTransaction, type PlaidAccountLike, type PlaidTxnLike } from '@/lib/plaid/map'
 import { runSync, type SyncPage } from '@/lib/plaid/sync'
-import type { PlaidItem } from '@/lib/types'
+import type { PlaidItem, Account } from '@/lib/types'
 
 export type SyncTotals = { added: number; modified: number; removed: number }
 export type SyncItemError = { itemId: string; message: string }
@@ -107,4 +107,49 @@ export async function syncPlaidItems(
   }
 
   return { totals, errors, itemsSynced }
+}
+
+export type AccountBalanceSnapshotRow = {
+  user_id: string
+  account_id: string
+  as_of: string
+  balance: number
+  source: 'observed'
+}
+
+/** Pure: maps accounts to the snapshot rows recorded for a given date. */
+export function snapshotRows(accounts: Account[], asOf: string): AccountBalanceSnapshotRow[] {
+  return accounts.map((a) => ({
+    user_id: a.user_id,
+    account_id: a.id,
+    as_of: asOf,
+    balance: a.current_balance,
+    source: 'observed' as const,
+  }))
+}
+
+/**
+ * Records one balance snapshot per account for `asOf`, across ALL accounts —
+ * not just Plaid-linked ones. Manual accounts hold balances too, and omitting
+ * them would silently skew every point in the net worth series.
+ *
+ * Upserts on (account_id, as_of), so running twice in a day rewrites the day
+ * rather than duplicating it. Returns the number of rows written.
+ */
+export async function captureBalanceSnapshots(
+  db: SupabaseClient,
+  asOf: string,
+): Promise<number> {
+  const { data, error } = await db.from('accounts').select('*')
+  if (error) throw new Error(`Failed to load accounts for snapshot: ${error.message}`)
+
+  const rows = snapshotRows((data ?? []) as Account[], asOf)
+  if (rows.length === 0) return 0
+
+  const { error: upsertError } = await db
+    .from('account_balance_snapshots')
+    .upsert(rows, { onConflict: 'account_id,as_of' })
+  if (upsertError) throw new Error(`Failed to write snapshots: ${upsertError.message}`)
+
+  return rows.length
 }

@@ -80,3 +80,12 @@ export interface PlaidItem {
   institution_name: string
   last_synced_at?: string | null
 }
+
+export interface AccountBalanceSnapshot {
+  id: string
+  user_id: string
+  account_id: string
+  as_of: string // ISO 'YYYY-MM-DD'
+  balance: number
+  source: 'observed' | 'reconstructed'
+}
