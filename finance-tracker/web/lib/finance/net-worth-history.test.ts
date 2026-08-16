@@ -19,9 +19,37 @@ function txn(partial: Partial<Transaction>): Transaction {
 }
 
 describe('reconstructBalances', () => {
-  it('returns one month-end point per requested month, newest last', () => {
-    const out = reconstructBalances(1000, 'checking', [], 3, '2026-08-14')
+  it('returns month-end points within the transaction horizon, newest last', () => {
+    const out = reconstructBalances(1000, 'checking', [txn({ date: '2026-06-10' })], 3, '2026-08-14')
     expect(out.map((p) => p.as_of)).toEqual(['2026-06-30', '2026-07-31'])
+  })
+
+  it('emits nothing when the account has no transactions to reconstruct from', () => {
+    // Every month-end would return the same balance — a flat line asserting
+    // "net worth did not change" when the truth is "we have no information".
+    expect(reconstructBalances(1000, 'checking', [], 13, '2026-08-14')).toEqual([])
+  })
+
+  it('stops at the transaction horizon instead of fabricating flat earlier months', () => {
+    // Plaid returned only ~3 months of history against a 13-month window. The
+    // months before the oldest transaction carry no information: each would
+    // subtract the identical transaction set and repeat the same balance.
+    const out = reconstructBalances(
+      1000,
+      'checking',
+      [txn({ amount: -100, date: '2026-05-09' }), txn({ amount: -100, date: '2026-07-02' })],
+      13,
+      '2026-08-14',
+    )
+    // Anchor (last end before the oldest txn) through the newest end — no 2025 points.
+    expect(out.map((p) => p.as_of)).toEqual(['2026-04-30', '2026-05-31', '2026-06-30', '2026-07-31'])
+    // The anchor is the opening position: today's balance less everything since.
+    expect(out[0].balance).toBe(1200)
+  })
+
+  it('keeps only the opening anchor when every month-end predates the oldest transaction', () => {
+    const out = reconstructBalances(1000, 'checking', [txn({ amount: -50, date: '2026-08-05' })], 3, '2026-08-14')
+    expect(out.map((p) => p.as_of)).toEqual(['2026-07-31'])
   })
 
   it('walks an asset account backwards: a past expense means a higher past balance', () => {
@@ -57,8 +85,21 @@ describe('reconstructBalances', () => {
   })
 
   it('ignores transactions dated after today', () => {
-    const out = reconstructBalances(1000, 'checking', [txn({ amount: -999, date: '2026-09-01' })], 2, '2026-08-14')
-    expect(out.find((p) => p.as_of === '2026-07-31')!.balance).toBe(1000)
+    const out = reconstructBalances(
+      1000,
+      'checking',
+      [txn({ amount: -999, date: '2026-09-01' }), txn({ amount: -50, date: '2026-08-05' })],
+      2,
+      '2026-08-14',
+    )
+    // Only the Aug 5 transaction counts: 1000 + 50, not 1000 + 50 + 999.
+    expect(out.find((p) => p.as_of === '2026-07-31')!.balance).toBe(1050)
+  })
+
+  it('reconstructs nothing when every transaction is dated after today', () => {
+    expect(
+      reconstructBalances(1000, 'checking', [txn({ amount: -999, date: '2026-09-01' })], 2, '2026-08-14'),
+    ).toEqual([])
   })
 })
 

@@ -27,6 +27,17 @@ function monthEnd(ym: string): string {
  * previous month's end. Results are approximate by nature: transactions cannot
  * explain market moves, interest, or balance-only adjustments, which is why
  * callers must mark these points `source='reconstructed'`.
+ *
+ * **Reconstruction stops at the account's transaction horizon.** Before the
+ * oldest transaction there is nothing left to subtract, so every earlier
+ * month-end would return an identical balance — a flat line asserting "net
+ * worth did not change" when the truth is "we have no information". Plaid
+ * typically returns far less history than the 13-month window, so without this
+ * clamp most of the series would be fabricated. Points are therefore emitted
+ * only from the last month-end before the oldest transaction onward; that
+ * anchor is the account's opening position and is exactly as well-supported as
+ * the points after it. An account with no transactions at all reconstructs to
+ * nothing.
  */
 export function reconstructBalances(
   currentBalance: number,
@@ -43,9 +54,20 @@ export function reconstructBalances(
     .map(monthEnd)
 
   const inWindow = transactions.filter((t) => t.date <= today)
+  if (inWindow.length === 0) return []
+
+  const oldestTxn = inWindow.reduce((min, t) => (t.date < min ? t.date : min), inWindow[0].date)
+  // Keep the last month-end before the oldest transaction as the opening
+  // anchor, then everything after it. Earlier ends carry no information.
+  const firstInformed = ends.findIndex((end) => end >= oldestTxn)
+  const startIdx =
+    firstInformed === -1
+      ? ends.length - 1 // every end predates the oldest txn: only the anchor survives
+      : Math.max(0, firstInformed - 1)
+
   const sign = isLiability(accountType) ? 1 : -1
 
-  return ends.map((as_of) => {
+  return ends.slice(startIdx).map((as_of) => {
     const after = inWindow
       .filter((t) => t.date > as_of)
       .reduce((sum, t) => sum + t.amount, 0)
