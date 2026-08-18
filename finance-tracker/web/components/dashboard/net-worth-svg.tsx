@@ -2,7 +2,7 @@
 
 import { netWorthRuns, type NetWorthPoint } from '@/lib/finance/net-worth-history'
 import {
-  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd,
+  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd, dayLabel,
 } from '@/components/dashboard/chart-geometry'
 
 export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
@@ -17,7 +17,7 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
         <p className="text-sm font-medium text-muted-foreground">Not enough history to chart yet</p>
         <p className="max-w-sm text-xs text-muted-foreground">
           {points.length === 1
-            ? `One comparable snapshot so far, from ${points[0].as_of}. The trend appears once the daily sync records another.`
+            ? `One comparable snapshot so far, from ${dayLabel(points[0].as_of)}. The trend appears once the daily sync records another.`
             : 'The daily sync records one snapshot per day. The trend appears once two have been recorded.'}
         </p>
       </div>
@@ -51,7 +51,7 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
 
   const latest = points[points.length - 1]
   // One string child only — interleaved expressions break hydration in Next 16.
-  const caption = `Net worth ${usd(latest.net_worth)} as of ${latest.as_of}`
+  const caption = `Net worth ${usd(latest.net_worth)} as of ${dayLabel(latest.as_of)}`
 
   return (
     <div className="space-y-2">
@@ -85,10 +85,10 @@ export function NetWorthSvg({ points }: { points: NetWorthPoint[] }) {
           />
         ))}
         <text x={PAD} y={LABEL_Y} className="fill-muted-foreground text-[11px]">
-          {points[0].as_of}
+          {dayLabel(points[0].as_of)}
         </text>
         <text x={VB_W - PAD} y={LABEL_Y} textAnchor="end" className="fill-muted-foreground text-[11px]">
-          {latest.as_of}
+          {dayLabel(latest.as_of)}
         </text>
       </svg>
 

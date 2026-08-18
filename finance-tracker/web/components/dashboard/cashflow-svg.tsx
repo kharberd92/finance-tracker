@@ -2,18 +2,11 @@
 
 import { cashflowDomain, type CashflowMonth } from '@/lib/finance/cashflow'
 import {
-  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd,
+  VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd, monthLabel,
 } from '@/components/dashboard/chart-geometry'
 
 const BAR_W = 22
 const BAR_GAP = 6
-const MONTH_ABBR = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-]
-
-function monthLabel(ym: string): string {
-  return MONTH_ABBR[Number(ym.slice(5)) - 1] ?? ym
-}
 
 export function CashflowSvg({ rows }: { rows: CashflowMonth[] }) {
   const data = rows
