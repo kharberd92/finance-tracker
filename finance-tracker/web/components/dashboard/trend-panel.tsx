@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { CashflowSvg } from '@/components/dashboard/cashflow-svg'
+import { dayLabel } from '@/components/dashboard/chart-geometry'
 import { NetWorthSvg } from '@/components/dashboard/net-worth-svg'
 import type { CashflowMonth } from '@/lib/finance/cashflow'
 import {
@@ -79,7 +80,7 @@ export function TrendPanel({
 
       {!showingCashflow && hidden && (
         <p className="text-center text-xs text-muted-foreground">
-          {`${hidden.dates} earlier ${hidden.dates === 1 ? 'date' : 'dates'} (${hidden.from} – ${hidden.to}) `}
+          {`${hidden.dates} earlier ${hidden.dates === 1 ? 'date' : 'dates'} (${dayLabel(hidden.from)} – ${dayLabel(hidden.to)}) `}
           aren&rsquo;t charted &mdash; they cover only some accounts, so their totals are not
           comparable. Estimated history cannot include accounts with no transactions, such as
           investments and loans.

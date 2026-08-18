@@ -29,8 +29,8 @@ describe('TrendPanel', () => {
 
     const note = screen.getByText(/aren’t charted/)
     expect(note.textContent).toContain('4 earlier dates')
-    expect(note.textContent).toContain('2026-04-30')
-    expect(note.textContent).toContain('2026-07-31')
+    expect(note.textContent).toContain('Apr 30, 2026')
+    expect(note.textContent).toContain('Jul 31, 2026')
   })
 
   it('says nothing when no history is withheld', () => {

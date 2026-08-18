@@ -14,7 +14,7 @@ describe('NetWorthSvg', () => {
     render(<NetWorthSvg points={[point({ as_of: '2026-08-16' })]} />)
 
     expect(screen.getByText(/not enough history to chart yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/2026-08-16/)).toBeInTheDocument()
+    expect(screen.getByText(/Aug 16, 2026/)).toBeInTheDocument()
     expect(document.querySelector('polyline')).toBeNull()
   })
 
