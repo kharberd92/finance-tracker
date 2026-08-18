@@ -252,3 +252,40 @@ export function netWorthDelta(series: NetWorthPoint[], days: number): NetWorthDe
     days: daysBetween(earliest.as_of, latest.as_of),
   }
 }
+
+export interface HiddenHistory {
+  /** How many dates were withheld. */
+  dates: number
+  /** Oldest withheld date, 'YYYY-MM-DD'. */
+  from: string
+  /** Newest withheld date, 'YYYY-MM-DD'. */
+  to: string
+}
+
+/**
+ * Describes the history that exists but cannot be charted, so the UI can say
+ * so rather than silently showing a shorter line than the data suggests.
+ *
+ * Consumers plot `complete` points only (an incomplete date is missing at least
+ * one account, so its total is not comparable to a full one). That filter is
+ * correct but invisible: reconstruction is built entirely on transactions, so
+ * an investment, loan, or any other account Plaid sends no transactions for
+ * reconstructs to nothing — and every backfilled month-end is then narrower
+ * than the observed dates that cover all accounts. The whole backfill drops out
+ * of the chart and the user is left wondering why `npm run backfill:networth`
+ * appeared to do nothing.
+ *
+ * Returns null when nothing is withheld.
+ *
+ * Expects `series` sorted ascending by `as_of` (as `netWorthSeries` returns).
+ */
+export function hiddenHistory(series: NetWorthPoint[]): HiddenHistory | null {
+  const hidden = series.filter((p) => !p.complete)
+  if (hidden.length === 0) return null
+
+  return {
+    dates: hidden.length,
+    from: hidden[0].as_of,
+    to: hidden[hidden.length - 1].as_of,
+  }
+}
