@@ -5,6 +5,7 @@ import {
   netWorthDelta,
   netWorthRuns,
   sliceTrailingMonths,
+  hiddenHistory,
   type BalanceSnapshot,
   type NetWorthPoint,
 } from './net-worth-history'
@@ -347,5 +348,43 @@ describe('netWorthDelta', () => {
 
   it('reports negative change when net worth fell', () => {
     expect(netWorthDelta([obs('2026-08-01', 1000), obs('2026-08-10', 900)], 30)!.change).toBe(-100)
+  })
+})
+
+describe('hiddenHistory', () => {
+  const pt = (as_of: string, complete: boolean): NetWorthPoint =>
+    ({ as_of, net_worth: 100, source: complete ? 'observed' : 'reconstructed', complete })
+
+  it('returns null when every point is chartable', () => {
+    expect(hiddenHistory([pt('2026-08-16', true), pt('2026-08-17', true)])).toBeNull()
+  })
+
+  it('returns null for an empty series', () => {
+    expect(hiddenHistory([])).toBeNull()
+  })
+
+  it('reports the span of the withheld dates', () => {
+    // The real shape after a backfill on an account set that includes
+    // investments and loans: four reconstructed month-ends cover only the
+    // transaction-bearing accounts, so none of them is comparable to the
+    // observed dates that cover all of them.
+    const series = [
+      pt('2026-04-30', false),
+      pt('2026-05-31', false),
+      pt('2026-06-30', false),
+      pt('2026-07-31', false),
+      pt('2026-08-16', true),
+      pt('2026-08-17', true),
+    ]
+    expect(hiddenHistory(series)).toEqual({
+      dates: 4,
+      from: '2026-04-30',
+      to: '2026-07-31',
+    })
+  })
+
+  it('spans withheld dates that are not contiguous', () => {
+    const series = [pt('2026-04-30', false), pt('2026-08-16', true), pt('2026-08-17', false)]
+    expect(hiddenHistory(series)).toEqual({ dates: 2, from: '2026-04-30', to: '2026-08-17' })
   })
 })

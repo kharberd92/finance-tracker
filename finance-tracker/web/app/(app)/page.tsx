@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { netWorth } from '@/lib/finance/net-worth'
 import { trailingMonths, monthlyCashflow } from '@/lib/finance/cashflow'
-import { netWorthSeries, netWorthDelta } from '@/lib/finance/net-worth-history'
+import { netWorthSeries, netWorthDelta, hiddenHistory } from '@/lib/finance/net-worth-history'
 import { Card } from '@/components/ui/card'
 import { CashflowSummary } from '@/components/dashboard/cashflow-summary'
 import { TrendPanel } from '@/components/dashboard/trend-panel'
@@ -70,6 +70,9 @@ export default async function DashboardPage() {
   // them would spike the line by a newly linked account's whole balance. Charts
   // show the complete dates only; netWorthDelta applies the same rule itself.
   const nwPlot = nwSeries.filter((p) => p.complete)
+  // Dropping them silently makes a completed backfill look like it did nothing,
+  // so the chart says what was withheld and why.
+  const nwHidden = hiddenHistory(nwSeries)
   const firstObserved = nwPlot.find((p) => p.source === 'observed')?.as_of
 
   return (
@@ -102,7 +105,7 @@ export default async function DashboardPage() {
         <CashflowSummary row={rows[rows.length - 1]} />
       </div>
 
-      <TrendPanel cashflow={rows} netWorth={nwPlot} />
+      <TrendPanel cashflow={rows} netWorth={nwPlot} hidden={nwHidden} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <BudgetWidget budgets={budgets} transactions={exploded} year={year} month={mon} />

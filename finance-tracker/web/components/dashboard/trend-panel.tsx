@@ -5,7 +5,11 @@ import { Card } from '@/components/ui/card'
 import { CashflowSvg } from '@/components/dashboard/cashflow-svg'
 import { NetWorthSvg } from '@/components/dashboard/net-worth-svg'
 import type { CashflowMonth } from '@/lib/finance/cashflow'
-import { sliceTrailingMonths, type NetWorthPoint } from '@/lib/finance/net-worth-history'
+import {
+  sliceTrailingMonths,
+  type NetWorthPoint,
+  type HiddenHistory,
+} from '@/lib/finance/net-worth-history'
 
 const SPANS = [6, 12] as const
 type View = 'cashflow' | 'networth'
@@ -13,9 +17,11 @@ type View = 'cashflow' | 'networth'
 export function TrendPanel({
   cashflow,
   netWorth,
+  hidden,
 }: {
   cashflow: CashflowMonth[]
   netWorth: NetWorthPoint[]
+  hidden?: HiddenHistory | null
 }) {
   const [span, setSpan] = useState<6 | 12>(6)
   const [view, setView] = useState<View>('cashflow')
@@ -71,6 +77,14 @@ export function TrendPanel({
         <NetWorthSvg points={shownNetWorth} />
       )}
 
+      {!showingCashflow && hidden && (
+        <p className="text-center text-xs text-muted-foreground">
+          {`${hidden.dates} earlier ${hidden.dates === 1 ? 'date' : 'dates'} (${hidden.from} – ${hidden.to}) `}
+          aren&rsquo;t charted &mdash; they cover only some accounts, so their totals are not
+          comparable. Estimated history cannot include accounts with no transactions, such as
+          investments and loans.
+        </p>
+      )}
       {showingCashflow && (
         <div className="flex justify-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
