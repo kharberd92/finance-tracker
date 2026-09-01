@@ -334,7 +334,12 @@ export interface DateCoverage {
   as_of: string
   /** Distinct existing accounts holding a snapshot on this date. */
   covered: number
-  /** Accounts that would have to be covered for the date to chart. */
+  /**
+   * Every account the user has. Deliberately not the guard's own yardstick —
+   * that compares against the fullest date in the series, which can itself be
+   * short an account. Reporting the true account count never tells the user a
+   * date is finished when it is still missing a balance.
+   */
   total: number
   missingAccountIds: string[]
 }
