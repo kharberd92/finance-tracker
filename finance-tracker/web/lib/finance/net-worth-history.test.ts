@@ -6,6 +6,7 @@ import {
   netWorthRuns,
   sliceTrailingMonths,
   hiddenHistory,
+  trustOf,
   type BalanceSnapshot,
   type NetWorthPoint,
 } from './net-worth-history'
@@ -386,5 +387,78 @@ describe('hiddenHistory', () => {
   it('spans withheld dates that are not contiguous', () => {
     const series = [pt('2026-04-30', false), pt('2026-08-16', true), pt('2026-08-17', false)]
     expect(hiddenHistory(series)).toEqual({ dates: 2, from: '2026-04-30', to: '2026-08-17' })
+  })
+})
+
+describe('provenance vs. trust', () => {
+  const accounts = [acct({ id: 'a', type: 'checking' }), acct({ id: 'c', type: 'credit' })]
+
+  it('maps a manual provenance to observed trust', () => {
+    // A balance the user read off a statement is real data, not an estimate:
+    // it renders solid and is eligible for the delta.
+    expect(trustOf('manual')).toBe('observed')
+    expect(trustOf('observed')).toBe('observed')
+    expect(trustOf('reconstructed')).toBe('reconstructed')
+  })
+
+  it('charts a manual snapshot as an observed point', () => {
+    const out = netWorthSeries([snap({ source: 'manual', balance: 500 })], accounts)
+    expect(out).toEqual([
+      { as_of: '2026-08-01', net_worth: 500, source: 'observed', complete: true },
+    ])
+  })
+
+  it('marks a date reconstructed when manual and reconstructed inputs mix', () => {
+    // Weakest input still wins: one estimate makes the whole total an estimate.
+    const out = netWorthSeries(
+      [
+        snap({ account_id: 'a', balance: 1000, source: 'manual' }),
+        snap({ account_id: 'c', balance: 400, source: 'reconstructed' }),
+      ],
+      accounts,
+    )
+    expect(out[0].source).toBe('reconstructed')
+  })
+
+  it('keeps a date observed when manual and observed inputs mix', () => {
+    const out = netWorthSeries(
+      [
+        snap({ account_id: 'a', balance: 1000, source: 'manual' }),
+        snap({ account_id: 'c', balance: 400, source: 'observed' }),
+      ],
+      accounts,
+    )
+    expect(out[0].source).toBe('observed')
+  })
+
+  it('counts manual snapshots toward a date completeness', () => {
+    // The whole point of hand entry: filling the accounts reconstruction
+    // cannot reach is what makes a date chartable.
+    const out = netWorthSeries(
+      [
+        snap({ account_id: 'a', as_of: '2026-07-31', balance: 1000, source: 'reconstructed' }),
+        snap({ account_id: 'c', as_of: '2026-07-31', balance: 400, source: 'manual' }),
+        snap({ account_id: 'a', as_of: '2026-08-01', balance: 1100 }),
+        snap({ account_id: 'c', as_of: '2026-08-01', balance: 400 }),
+      ],
+      accounts,
+    )
+    expect(out.map((p) => p.complete)).toEqual([true, true])
+  })
+
+  it('lets a manual-only series produce a delta', () => {
+    const series = netWorthSeries(
+      [
+        snap({ account_id: 'a', as_of: '2026-07-31', balance: 1000, source: 'manual' }),
+        snap({ account_id: 'a', as_of: '2026-08-10', balance: 1200, source: 'manual' }),
+      ],
+      [acct({ id: 'a', type: 'checking' })],
+    )
+    expect(netWorthDelta(series, 30)).toEqual({
+      change: 200,
+      fromDate: '2026-07-31',
+      toDate: '2026-08-10',
+      days: 10,
+    })
   })
 })

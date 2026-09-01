@@ -81,11 +81,25 @@ export interface PlaidItem {
   last_synced_at?: string | null
 }
 
+/**
+ * Where a stored snapshot came from. Governs who may overwrite it: automated
+ * writers (the daily capture, the backfill) never overwrite a number a human
+ * stands behind.
+ *
+ * - `observed` — captured from `current_balance` by the daily job.
+ * - `manual` — read off a statement and entered by the user.
+ * - `reconstructed` — estimated by walking transactions backwards.
+ *
+ * Collapse it to a chartable trust level with `trustOf` in
+ * `lib/finance/net-worth-history.ts`.
+ */
+export type SnapshotProvenance = 'observed' | 'manual' | 'reconstructed'
+
 export interface AccountBalanceSnapshot {
   id: string
   user_id: string
   account_id: string
   as_of: string // ISO 'YYYY-MM-DD'
   balance: number
-  source: 'observed' | 'reconstructed'
+  source: SnapshotProvenance
 }

@@ -1,4 +1,4 @@
-import type { Account, AccountType, Transaction } from '@/lib/types'
+import type { Account, AccountType, SnapshotProvenance, Transaction } from '@/lib/types'
 import { isLiability } from '@/lib/finance/net-worth'
 import { trailingMonths } from '@/lib/finance/cashflow'
 import { shiftMonth } from '@/lib/finance/month'
@@ -75,13 +75,30 @@ export function reconstructBalances(
   })
 }
 
+export type { SnapshotProvenance } from '@/lib/types'
+
+/**
+ * How far a CHARTED point can be trusted. Two-valued on purpose: it drives
+ * dashed-vs-solid rendering and delta eligibility, and both a captured and an
+ * attested balance are real measurements of that date. Read `'observed'` here
+ * as "measured or attested", not as "written by the daily job".
+ */
 export type SnapshotSource = 'observed' | 'reconstructed'
+
+/**
+ * Collapses provenance to trust. A manual balance ranks WITH an observed one:
+ * the user read it off a statement, so unlike a reconstruction it can see
+ * market moves, interest, and balance-only adjustments.
+ */
+export function trustOf(provenance: SnapshotProvenance): SnapshotSource {
+  return provenance === 'reconstructed' ? 'reconstructed' : 'observed'
+}
 
 export interface BalanceSnapshot {
   account_id: string
   as_of: string
   balance: number
-  source: SnapshotSource
+  source: SnapshotProvenance
 }
 
 export interface NetWorthPoint {
@@ -111,9 +128,11 @@ function daysBetween(from: string, to: string): number {
 
 /**
  * Rolls per-account balance snapshots into a net worth series, applying the
- * same liability rule `netWorth()` uses. A date is marked 'reconstructed' when
- * ANY contributing account balance is reconstructed — a point is only as
- * trustworthy as its weakest input.
+ * same liability rule `netWorth()` uses. Provenance is collapsed to trust by
+ * `trustOf` on the way in, so a manual balance contributes exactly as an
+ * observed one does. A date is marked 'reconstructed' when ANY contributing
+ * account balance is reconstructed — a point is only as trustworthy as its
+ * weakest input.
  *
  * Snapshots for accounts that no longer exist are dropped: their type is
  * unknown, so their sign would be a guess.
@@ -147,7 +166,7 @@ export function netWorthSeries(
       { net_worth: 0, source: 'observed' as SnapshotSource, accountIds: new Set<string>() }
     entry.net_worth += signed
     entry.accountIds.add(s.account_id)
-    if (s.source === 'reconstructed') entry.source = 'reconstructed'
+    if (trustOf(s.source) === 'reconstructed') entry.source = 'reconstructed'
     byDate.set(s.as_of, entry)
   }
 
