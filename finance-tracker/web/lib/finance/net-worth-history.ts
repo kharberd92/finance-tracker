@@ -11,6 +11,25 @@ function monthEnd(ym: string): string {
 }
 
 /**
+ * The month-ends history lives on: the trailing `months` months ending at
+ * `today`, excluding the current month — whose month-end has not happened yet,
+ * so the list holds `months - 1` dates. Ascending, each clamped to its own
+ * month's length.
+ *
+ * This is deliberately the ONE definition of the grid. Reconstruction, the
+ * backfill script, and manual entry all target it, because a manual balance
+ * dated one day off a reconstructed one produces two dates each missing an
+ * account instead of one complete date — and the completeness guard then
+ * withholds both, leaving the chart exactly as empty as before.
+ */
+export function historyMonthEnds(months: number, today: string): string[] {
+  const currentYm = today.slice(0, 7)
+  return trailingMonths(currentYm, months)
+    .filter((ym) => ym !== currentYm)
+    .map(monthEnd)
+}
+
+/**
  * Reconstructs an account's past month-end balances by walking today's balance
  * backwards through its transactions.
  *
@@ -46,12 +65,7 @@ export function reconstructBalances(
   months: number,
   today: string,
 ): { as_of: string; balance: number }[] {
-  const currentYm = today.slice(0, 7)
-  // trailingMonths includes the current (partial) month; drop it — its month-end
-  // has not happened yet.
-  const ends = trailingMonths(currentYm, months)
-    .filter((ym) => ym !== currentYm)
-    .map(monthEnd)
+  const ends = historyMonthEnds(months, today)
 
   const inWindow = transactions.filter((t) => t.date <= today)
   if (inWindow.length === 0) return []
@@ -307,4 +321,50 @@ export function hiddenHistory(series: NetWorthPoint[]): HiddenHistory | null {
     from: hidden[0].as_of,
     to: hidden[hidden.length - 1].as_of,
   }
+}
+
+export interface DateCoverage {
+  as_of: string
+  /** Distinct existing accounts holding a snapshot on this date. */
+  covered: number
+  /** Accounts that would have to be covered for the date to chart. */
+  total: number
+  missingAccountIds: string[]
+}
+
+/**
+ * How much of each date's account set is accounted for.
+ *
+ * `netWorthSeries` withholds any date covering fewer accounts than the fullest
+ * one, which is correct but opaque: partial entry unlocks nothing, so without
+ * this the user cannot tell whether one more balance completes a date or nine
+ * more do. Each row names exactly what is still missing.
+ *
+ * Snapshots for accounts that no longer exist are ignored — their type is
+ * unknown, so `netWorthSeries` drops them and they are not coverage.
+ */
+export function coverageByDate(
+  snapshots: BalanceSnapshot[],
+  accounts: Account[],
+  dates: string[],
+): DateCoverage[] {
+  const known = new Set(accounts.map((a) => a.id))
+  const byDate = new Map<string, Set<string>>()
+
+  for (const s of snapshots) {
+    if (!known.has(s.account_id)) continue
+    const entry = byDate.get(s.as_of) ?? new Set<string>()
+    entry.add(s.account_id)
+    byDate.set(s.as_of, entry)
+  }
+
+  return dates.map((as_of) => {
+    const have = byDate.get(as_of) ?? new Set<string>()
+    return {
+      as_of,
+      covered: have.size,
+      total: accounts.length,
+      missingAccountIds: accounts.filter((a) => !have.has(a.id)).map((a) => a.id),
+    }
+  })
 }

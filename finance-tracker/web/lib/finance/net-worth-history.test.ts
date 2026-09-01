@@ -7,6 +7,8 @@ import {
   sliceTrailingMonths,
   hiddenHistory,
   trustOf,
+  historyMonthEnds,
+  coverageByDate,
   type BalanceSnapshot,
   type NetWorthPoint,
 } from './net-worth-history'
@@ -460,5 +462,115 @@ describe('provenance vs. trust', () => {
       toDate: '2026-08-10',
       days: 10,
     })
+  })
+})
+
+describe('historyMonthEnds', () => {
+  it('excludes the current partial month, ascending', () => {
+    // The current month's end has not happened yet, so `months` yields
+    // `months - 1` dates.
+    expect(historyMonthEnds(3, '2026-08-14')).toEqual(['2026-06-30', '2026-07-31'])
+  })
+
+  it('clamps each date to its own month length', () => {
+    expect(historyMonthEnds(4, '2026-05-09')).toEqual(['2026-02-28', '2026-03-31', '2026-04-30'])
+  })
+
+  it('rolls back over a year boundary', () => {
+    expect(historyMonthEnds(3, '2026-01-20')).toEqual(['2025-11-30', '2025-12-31'])
+  })
+
+  it('handles a leap February', () => {
+    expect(historyMonthEnds(2, '2024-03-05')).toEqual(['2024-02-29'])
+  })
+
+  it('is the exact grid reconstructBalances emits onto', () => {
+    // The whole feature depends on this: a manual balance on 2026-03-30 beside
+    // a reconstructed one on 2026-03-31 makes two incomplete dates instead of
+    // one complete one, and the chart stays empty.
+    const grid = historyMonthEnds(13, '2026-08-14')
+    const out = reconstructBalances(
+      1000,
+      'checking',
+      [txn({ date: '2025-09-01' })],
+      13,
+      '2026-08-14',
+    )
+    expect(out.map((p) => p.as_of)).toEqual(grid)
+  })
+})
+
+describe('coverageByDate', () => {
+  const accounts = [
+    acct({ id: 'a', name: 'Checking' }),
+    acct({ id: 'c', name: 'Card', type: 'credit' }),
+    acct({ id: 'i', name: '401k', type: 'investment' }),
+  ]
+
+  it('reports a fully covered date', () => {
+    const out = coverageByDate(
+      [
+        snap({ account_id: 'a', as_of: '2026-07-31' }),
+        snap({ account_id: 'c', as_of: '2026-07-31', source: 'manual' }),
+        snap({ account_id: 'i', as_of: '2026-07-31', source: 'reconstructed' }),
+      ],
+      accounts,
+      ['2026-07-31'],
+    )
+    expect(out).toEqual([
+      { as_of: '2026-07-31', covered: 3, total: 3, missingAccountIds: [] },
+    ])
+  })
+
+  it('names the accounts a partially covered date is missing', () => {
+    const out = coverageByDate(
+      [snap({ account_id: 'a', as_of: '2026-07-31' })],
+      accounts,
+      ['2026-07-31'],
+    )
+    expect(out[0]).toEqual({
+      as_of: '2026-07-31',
+      covered: 1,
+      total: 3,
+      missingAccountIds: ['c', 'i'],
+    })
+  })
+
+  it('reports a date with nothing at all', () => {
+    const out = coverageByDate([], accounts, ['2026-06-30'])
+    expect(out[0]).toEqual({
+      as_of: '2026-06-30',
+      covered: 0,
+      total: 3,
+      missingAccountIds: ['a', 'c', 'i'],
+    })
+  })
+
+  it('ignores snapshots for accounts that no longer exist', () => {
+    // Same rule netWorthSeries applies: an orphan row cannot be signed, so it
+    // must not be counted as coverage either.
+    const out = coverageByDate(
+      [snap({ account_id: 'gone', as_of: '2026-07-31' })],
+      accounts,
+      ['2026-07-31'],
+    )
+    expect(out[0].covered).toBe(0)
+  })
+
+  it('counts an account once even with duplicate rows', () => {
+    const out = coverageByDate(
+      [
+        snap({ account_id: 'a', as_of: '2026-07-31' }),
+        snap({ account_id: 'a', as_of: '2026-07-31', balance: 999 }),
+      ],
+      accounts,
+      ['2026-07-31'],
+    )
+    expect(out[0].covered).toBe(1)
+  })
+
+  it('returns one row per requested date, in the order given', () => {
+    const out = coverageByDate([], accounts, ['2026-06-30', '2026-07-31'])
+    expect(out.map((d) => d.as_of)).toEqual(['2026-06-30', '2026-07-31'])
   })
 })
