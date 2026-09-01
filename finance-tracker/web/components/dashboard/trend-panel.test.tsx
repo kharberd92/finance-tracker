@@ -23,6 +23,14 @@ describe('TrendPanel', () => {
     expect(screen.queryByText(/aren’t charted/)).toBeNull()
   })
 
+  it('points the withheld-history note at the way to fix it', () => {
+    render(<TrendPanel cashflow={cashflow} netWorth={netWorth} hidden={hidden} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Net worth' }))
+
+    const link = screen.getByRole('link', { name: /Add those balances/ })
+    expect(link.getAttribute('href')).toBe('/accounts/history')
+  })
+
   it('names the withheld dates in the net worth view', () => {
     render(<TrendPanel cashflow={cashflow} netWorth={netWorth} hidden={hidden} />)
     fireEvent.click(screen.getByRole('button', { name: 'Net worth' }))

@@ -44,11 +44,11 @@
 
 Introduce the third provenance without changing any charted behavior yet.
 
-- [ ] Write `supabase/migrations/0010_manual_balance_snapshots.sql`: drop constraint `account_balance_snapshots_source_check` if it exists, re-add it as `check (source in ('observed', 'manual', 'reconstructed'))`.
-- [ ] In `lib/finance/net-worth-history.ts`, add `export type SnapshotProvenance = 'observed' | 'manual' | 'reconstructed'`, keep `SnapshotSource` as the two-valued trust level, and add `trustOf(p: SnapshotProvenance): SnapshotSource` mapping `manual → 'observed'`. Document that series-level `'observed'` means "measured or attested".
-- [ ] Widen `BalanceSnapshot.source` to `SnapshotProvenance` and `AccountBalanceSnapshot.source` in `lib/types.ts` to match.
-- [ ] Route `netWorthSeries` through `trustOf`, preserving its weakest-input rule: a date is reconstructed iff any contributor is.
-- [ ] Tests: a `manual` snapshot yields an `observed` point; a date mixing `manual` and `reconstructed` is `reconstructed`; a date mixing `manual` and `observed` is `observed`; manual snapshots count toward a date's completeness; a manual-only series is delta-eligible.
+- [x] Write `supabase/migrations/0010_manual_balance_snapshots.sql`: drop constraint `account_balance_snapshots_source_check` if it exists, re-add it as `check (source in ('observed', 'manual', 'reconstructed'))`.
+- [x] In `lib/finance/net-worth-history.ts`, add `export type SnapshotProvenance = 'observed' | 'manual' | 'reconstructed'`, keep `SnapshotSource` as the two-valued trust level, and add `trustOf(p: SnapshotProvenance): SnapshotSource` mapping `manual → 'observed'`. Document that series-level `'observed'` means "measured or attested".
+- [x] Widen `BalanceSnapshot.source` to `SnapshotProvenance` and `AccountBalanceSnapshot.source` in `lib/types.ts` to match.
+- [x] Route `netWorthSeries` through `trustOf`, preserving its weakest-input rule: a date is reconstructed iff any contributor is.
+- [x] Tests: a `manual` snapshot yields an `observed` point; a date mixing `manual` and `reconstructed` is `reconstructed`; a date mixing `manual` and `observed` is `observed`; manual snapshots count toward a date's completeness; a manual-only series is delta-eligible.
 
 **Verify:** existing net-worth-history tests still pass unchanged — the point of the split is that no consumer moves.
 
@@ -58,9 +58,9 @@ Introduce the third provenance without changing any charted behavior yet.
 
 Make the dates reconstruction uses addressable, so manual entry can target them exactly.
 
-- [ ] Extract `reconstructBalances`' inline `ends` computation into an exported `historyMonthEnds(months: number, today: string): string[]` — the trailing `months` month-ends excluding the current partial month, ascending. `reconstructBalances` calls it.
-- [ ] Add `coverageByDate(snapshots: BalanceSnapshot[], accounts: Account[], dates: string[])` returning, per date, `{ as_of, covered, total, missingAccountIds }`. Counts distinct accounts with a snapshot on that date, ignoring snapshots for accounts that no longer exist (same rule `netWorthSeries` applies).
-- [ ] Tests: `historyMonthEnds` excludes the current month, handles a 31st/short-month boundary and a year rollover, and returns exactly what `reconstructBalances` emits against; `coverageByDate` reports a fully covered date, a partially covered one with the right missing ids, a date with nothing, and drops orphan snapshots.
+- [x] Extract `reconstructBalances`' inline `ends` computation into an exported `historyMonthEnds(months: number, today: string): string[]` — the trailing `months` month-ends excluding the current partial month, ascending. `reconstructBalances` calls it.
+- [x] Add `coverageByDate(snapshots: BalanceSnapshot[], accounts: Account[], dates: string[])` returning, per date, `{ as_of, covered, total, missingAccountIds }`. Counts distinct accounts with a snapshot on that date, ignoring snapshots for accounts that no longer exist (same rule `netWorthSeries` applies).
+- [x] Tests: `historyMonthEnds` excludes the current month, handles a 31st/short-month boundary and a year rollover, and returns exactly what `reconstructBalances` emits against; `coverageByDate` reports a fully covered date, a partially covered one with the right missing ids, a date with nothing, and drops orphan snapshots.
 
 **Verify:** `reconstructBalances`' own tests pass untouched after the extraction.
 
@@ -68,8 +68,8 @@ Make the dates reconstruction uses addressable, so manual entry can target them 
 
 ## Task 3 — Reconstruction never overwrites attested data
 
-- [ ] In `scripts/backfill-net-worth.ts`, replace the `>= firstObserved` boundary with an exact cell exclusion: query `(account_id, as_of)` for every snapshot whose `source <> 'reconstructed'`, build a key set, and filter each account's reconstructed points against it.
-- [ ] Keep the existing `skipped` counter and log line meaningful — it now counts cells held by real data of either kind.
+- [x] In `scripts/backfill-net-worth.ts`, replace the `>= firstObserved` boundary with an exact cell exclusion: query `(account_id, as_of)` for every snapshot whose `source <> 'reconstructed'`, build a key set, and filter each account's reconstructed points against it.
+- [x] Keep the existing `skipped` counter and log line meaningful — it now counts cells held by real data of either kind.
 
 **Verify:** re-running the backfill after manual entry leaves every manual row intact. State in the commit message that the script stays idempotent and non-destructive.
 
@@ -77,24 +77,24 @@ Make the dates reconstruction uses addressable, so manual entry can target them 
 
 ## Task 4 — `saveBalanceHistory`
 
-- [ ] Create `app/(app)/accounts/actions.ts` following the established action shape (`'use server'`, `ActionState`, session-resolved user, Zod validation, `revalidatePath`).
-- [ ] `saveBalanceHistory(accountId, entries)` where each entry is `{ as_of, balance: number | null }`:
+- [x] Create `app/(app)/accounts/actions.ts` following the established action shape (`'use server'`, `ActionState`, session-resolved user, Zod validation, `revalidatePath`).
+- [x] `saveBalanceHistory(accountId, entries)` where each entry is `{ as_of, balance: number | null }`:
   - reject when unauthenticated;
   - reject any `as_of` not in `historyMonthEnds(13, today)` — an off-grid date is a bug, not a value to store;
   - upsert entries with a number as `source: 'manual'` on the `(account_id, as_of)` conflict key;
   - delete rows for entries with `balance: null` **only where `source = 'manual'`**;
   - never write or delete an `observed` row;
   - `revalidatePath('/accounts/history')` and `revalidatePath('/')`.
-- [ ] Tests against `createSupabaseMock`/`createQueryStub`: unauthenticated; off-grid date rejected; a mixed batch upserts numbers and deletes nulls; the delete is scoped to `source = 'manual'`; a non-finite balance is rejected.
+- [x] Tests against `createSupabaseMock`/`createQueryStub`: unauthenticated; off-grid date rejected; a mixed batch upserts numbers and deletes nulls; the delete is scoped to `source = 'manual'`; a non-finite balance is rejected.
 
 ---
 
 ## Task 5 — The entry page
 
-- [ ] `app/(app)/accounts/history/page.tsx`: fetch accounts and the window's snapshots, compute `historyMonthEnds(13, today)` and `coverageByDate`, render the coverage summary plus the client entry island.
-- [ ] `components/accounts/coverage-summary.tsx`: one row per month-end — date, `covered / total`, and the missing account names. Make the shape of the job visible: the oldest dates need every account, because the horizon clamp stops reconstruction about four month-ends back.
-- [ ] `components/accounts/balance-history-view.tsx`: account selector; for the selected account a column of month-end inputs rendered by provenance per the spec's table (manual = editable value, observed = read-only, reconstructed = empty with the estimate as **placeholder**, none = empty). Label the field **"Amount owed"** for credit accounts and **"Balance"** otherwise, with the sign convention in helper text. One Save per account submits changed cells.
-- [ ] Link the page from `app/(app)/accounts/page.tsx`.
+- [x] `app/(app)/accounts/history/page.tsx`: fetch accounts and the window's snapshots, compute `historyMonthEnds(13, today)` and `coverageByDate`, render the coverage summary plus the client entry island.
+- [x] `components/accounts/coverage-summary.tsx`: one row per month-end — date, `covered / total`, and the missing account names. Make the shape of the job visible: the oldest dates need every account, because the horizon clamp stops reconstruction about four month-ends back.
+- [x] `components/accounts/balance-history-view.tsx`: account selector; for the selected account a column of month-end inputs rendered by provenance per the spec's table (manual = editable value, observed = read-only, reconstructed = empty with the estimate as **placeholder**, none = empty). Label the field **"Amount owed"** for credit accounts and **"Balance"** otherwise, with the sign convention in helper text. One Save per account submits changed cells.
+- [x] Link the page from `app/(app)/accounts/page.tsx`.
 
 **Verify:** an untouched field never writes anything — a displayed estimate must not be able to promote itself to an attestation.
 
@@ -102,9 +102,9 @@ Make the dates reconstruction uses addressable, so manual entry can target them 
 
 ## Task 6 — Wire the dashboard and record the work
 
-- [ ] `components/dashboard/trend-panel.tsx`: the withheld-history note links to `/accounts/history` and says the missing balances can be added from statements. Keep the existing explanation of *why* the dates are withheld.
-- [ ] Update `CLAUDE.md` **and** `AGENTS.md` in the same commit (they are the same document — mirror every edit): add the Plan 11 paragraph, add Plan 11 to the plan list, and rewrite Plan 10's reconstruction-coverage limitation to point at its resolution.
-- [ ] Note in the migration list that `0010` must be applied before the feature works end-to-end.
+- [x] `components/dashboard/trend-panel.tsx`: the withheld-history note links to `/accounts/history` and says the missing balances can be added from statements. Keep the existing explanation of *why* the dates are withheld.
+- [x] Update `CLAUDE.md` **and** `AGENTS.md` in the same commit (they are the same document — mirror every edit): add the Plan 11 paragraph, add Plan 11 to the plan list, and rewrite Plan 10's reconstruction-coverage limitation to point at its resolution.
+- [x] Note in the migration list that `0010` must be applied before the feature works end-to-end.
 
 **Manual smoke test** (after applying `0010`):
 1. `/accounts/history` lists every month-end with an honest coverage count.
