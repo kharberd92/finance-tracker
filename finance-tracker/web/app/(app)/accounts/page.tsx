@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { EmptyState } from '@/components/empty-state'
 import { Card } from '@/components/ui/card'
@@ -25,6 +26,12 @@ export default async function AccountsPage() {
         <h1 className="text-xl font-semibold">Accounts</h1>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Last synced: {lastSynced}</span>
+          <Link
+            href="/accounts/history"
+            className="text-sm text-primary underline-offset-4 hover:underline"
+          >
+            Balance history
+          </Link>
           <ConnectBankButton />
           <SyncButton />
         </div>

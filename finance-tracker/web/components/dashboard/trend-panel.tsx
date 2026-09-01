@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { CashflowSvg } from '@/components/dashboard/cashflow-svg'
 import { dayLabel } from '@/components/dashboard/chart-geometry'
@@ -83,7 +84,11 @@ export function TrendPanel({
           {`${hidden.dates} earlier ${hidden.dates === 1 ? 'date' : 'dates'} (${dayLabel(hidden.from)} – ${dayLabel(hidden.to)}) `}
           aren&rsquo;t charted &mdash; they cover only some accounts, so their totals are not
           comparable. Estimated history cannot include accounts with no transactions, such as
-          investments and loans.
+          investments and loans.{' '}
+          <Link href="/accounts/history" className="text-primary underline-offset-4 hover:underline">
+            Add those balances from your statements
+          </Link>
+          .
         </p>
       )}
       {showingCashflow && (

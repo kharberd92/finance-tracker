@@ -1,4 +1,4 @@
-import type { Account, AccountType, Transaction } from '@/lib/types'
+import type { Account, AccountType, SnapshotProvenance, Transaction } from '@/lib/types'
 import { isLiability } from '@/lib/finance/net-worth'
 import { trailingMonths } from '@/lib/finance/cashflow'
 import { shiftMonth } from '@/lib/finance/month'
@@ -8,6 +8,32 @@ function monthEnd(ym: string): string {
   const [y, m] = ym.split('-').map(Number)
   const d = new Date(Date.UTC(y, m, 0)) // day 0 of next month = last day of this one
   return d.toISOString().slice(0, 10)
+}
+
+/**
+ * How far back history reaches. Matches the recurring detector's window and
+ * gives a year-over-year read. Shared by reconstruction, the backfill script,
+ * and manual entry so all three address the same grid.
+ */
+export const HISTORY_MONTHS = 13
+
+/**
+ * The month-ends history lives on: the trailing `months` months ending at
+ * `today`, excluding the current month — whose month-end has not happened yet,
+ * so the list holds `months - 1` dates. Ascending, each clamped to its own
+ * month's length.
+ *
+ * This is deliberately the ONE definition of the grid. Reconstruction, the
+ * backfill script, and manual entry all target it, because a manual balance
+ * dated one day off a reconstructed one produces two dates each missing an
+ * account instead of one complete date — and the completeness guard then
+ * withholds both, leaving the chart exactly as empty as before.
+ */
+export function historyMonthEnds(months: number, today: string): string[] {
+  const currentYm = today.slice(0, 7)
+  return trailingMonths(currentYm, months)
+    .filter((ym) => ym !== currentYm)
+    .map(monthEnd)
 }
 
 /**
@@ -46,12 +72,7 @@ export function reconstructBalances(
   months: number,
   today: string,
 ): { as_of: string; balance: number }[] {
-  const currentYm = today.slice(0, 7)
-  // trailingMonths includes the current (partial) month; drop it — its month-end
-  // has not happened yet.
-  const ends = trailingMonths(currentYm, months)
-    .filter((ym) => ym !== currentYm)
-    .map(monthEnd)
+  const ends = historyMonthEnds(months, today)
 
   const inWindow = transactions.filter((t) => t.date <= today)
   if (inWindow.length === 0) return []
@@ -75,13 +96,30 @@ export function reconstructBalances(
   })
 }
 
+export type { SnapshotProvenance } from '@/lib/types'
+
+/**
+ * How far a CHARTED point can be trusted. Two-valued on purpose: it drives
+ * dashed-vs-solid rendering and delta eligibility, and both a captured and an
+ * attested balance are real measurements of that date. Read `'observed'` here
+ * as "measured or attested", not as "written by the daily job".
+ */
 export type SnapshotSource = 'observed' | 'reconstructed'
+
+/**
+ * Collapses provenance to trust. A manual balance ranks WITH an observed one:
+ * the user read it off a statement, so unlike a reconstruction it can see
+ * market moves, interest, and balance-only adjustments.
+ */
+export function trustOf(provenance: SnapshotProvenance): SnapshotSource {
+  return provenance === 'reconstructed' ? 'reconstructed' : 'observed'
+}
 
 export interface BalanceSnapshot {
   account_id: string
   as_of: string
   balance: number
-  source: SnapshotSource
+  source: SnapshotProvenance
 }
 
 export interface NetWorthPoint {
@@ -111,9 +149,11 @@ function daysBetween(from: string, to: string): number {
 
 /**
  * Rolls per-account balance snapshots into a net worth series, applying the
- * same liability rule `netWorth()` uses. A date is marked 'reconstructed' when
- * ANY contributing account balance is reconstructed — a point is only as
- * trustworthy as its weakest input.
+ * same liability rule `netWorth()` uses. Provenance is collapsed to trust by
+ * `trustOf` on the way in, so a manual balance contributes exactly as an
+ * observed one does. A date is marked 'reconstructed' when ANY contributing
+ * account balance is reconstructed — a point is only as trustworthy as its
+ * weakest input.
  *
  * Snapshots for accounts that no longer exist are dropped: their type is
  * unknown, so their sign would be a guess.
@@ -147,7 +187,7 @@ export function netWorthSeries(
       { net_worth: 0, source: 'observed' as SnapshotSource, accountIds: new Set<string>() }
     entry.net_worth += signed
     entry.accountIds.add(s.account_id)
-    if (s.source === 'reconstructed') entry.source = 'reconstructed'
+    if (trustOf(s.source) === 'reconstructed') entry.source = 'reconstructed'
     byDate.set(s.as_of, entry)
   }
 
@@ -288,4 +328,55 @@ export function hiddenHistory(series: NetWorthPoint[]): HiddenHistory | null {
     from: hidden[0].as_of,
     to: hidden[hidden.length - 1].as_of,
   }
+}
+
+export interface DateCoverage {
+  as_of: string
+  /** Distinct existing accounts holding a snapshot on this date. */
+  covered: number
+  /**
+   * Every account the user has. Deliberately not the guard's own yardstick —
+   * that compares against the fullest date in the series, which can itself be
+   * short an account. Reporting the true account count never tells the user a
+   * date is finished when it is still missing a balance.
+   */
+  total: number
+  missingAccountIds: string[]
+}
+
+/**
+ * How much of each date's account set is accounted for.
+ *
+ * `netWorthSeries` withholds any date covering fewer accounts than the fullest
+ * one, which is correct but opaque: partial entry unlocks nothing, so without
+ * this the user cannot tell whether one more balance completes a date or nine
+ * more do. Each row names exactly what is still missing.
+ *
+ * Snapshots for accounts that no longer exist are ignored — their type is
+ * unknown, so `netWorthSeries` drops them and they are not coverage.
+ */
+export function coverageByDate(
+  snapshots: BalanceSnapshot[],
+  accounts: Account[],
+  dates: string[],
+): DateCoverage[] {
+  const known = new Set(accounts.map((a) => a.id))
+  const byDate = new Map<string, Set<string>>()
+
+  for (const s of snapshots) {
+    if (!known.has(s.account_id)) continue
+    const entry = byDate.get(s.as_of) ?? new Set<string>()
+    entry.add(s.account_id)
+    byDate.set(s.as_of, entry)
+  }
+
+  return dates.map((as_of) => {
+    const have = byDate.get(as_of) ?? new Set<string>()
+    return {
+      as_of,
+      covered: have.size,
+      total: accounts.length,
+      missingAccountIds: accounts.filter((a) => !have.has(a.id)).map((a) => a.id),
+    }
+  })
 }
