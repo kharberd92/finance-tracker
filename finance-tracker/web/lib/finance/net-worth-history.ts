@@ -11,6 +11,13 @@ function monthEnd(ym: string): string {
 }
 
 /**
+ * How far back history reaches. Matches the recurring detector's window and
+ * gives a year-over-year read. Shared by reconstruction, the backfill script,
+ * and manual entry so all three address the same grid.
+ */
+export const HISTORY_MONTHS = 13
+
+/**
  * The month-ends history lives on: the trailing `months` months ending at
  * `today`, excluding the current month — whose month-end has not happened yet,
  * so the list holds `months - 1` dates. Ascending, each clamped to its own

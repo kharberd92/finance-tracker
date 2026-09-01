@@ -1,8 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { reconstructBalances } from '@/lib/finance/net-worth-history'
+import { reconstructBalances, HISTORY_MONTHS } from '@/lib/finance/net-worth-history'
 import type { Account, Transaction } from '@/lib/types'
-
-const MONTHS = 13 // matches the recurring detector's window; gives a YoY read
 
 /**
  * One-time backfill: reconstructs 13 months of month-end balances from
@@ -51,7 +49,7 @@ async function main() {
       account.current_balance,
       account.type,
       mine,
-      MONTHS,
+      HISTORY_MONTHS,
       today,
     )
 
