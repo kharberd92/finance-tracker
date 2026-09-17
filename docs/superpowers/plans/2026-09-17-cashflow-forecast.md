@@ -12,7 +12,7 @@
 
 - **A projection is never rendered as a measurement.** Today's balance is the only measured point on the curve; everything right of it renders in the estimated treatment `NetWorthSvg` already established for reconstructed runs.
 - **Nothing is invented to fill a gap.** No confidence bands, no smoothing, no discretionary-spending padding. The UI states that variable day-to-day spending is excluded, so the projected low is not mistaken for a floor.
-- **No double counting.** The three rules in the spec (paid-this-cycle bills, tracked candidates, already-past occurrences) are the correctness core of this feature — each gets its own test.
+- **No double counting.** The three rules in the spec (already-paid occurrences, tracked candidates, already-past occurrences) are the correctness core of this feature — each gets its own test.
 - **Pure logic stays pure** — `lib/finance/` takes no Supabase or React imports, and `today` is always a parameter, never the clock.
 - **Horizon caps at 60 days.** A longer line looks more informative while being less true.
 - **Next 16 conventions** (see `finance-tracker/web/AGENTS.md`): `cookies()` is async; shadcn Button composes via the `render` prop, not `asChild`; an SVG `<title>` takes exactly one string child (single template literal, never interleaved `{}`).
@@ -41,9 +41,9 @@
 
 ## Task 1 — Inputs the projection needs
 
-- [ ] In `lib/finance/recurring.ts`, add `medianIntervalDays: number` to `RecurringCandidate` and populate it from the `med` already computed in `detectRecurring`. Purely additive — the bands and all existing fields stay exactly as they are.
-- [ ] Create `lib/finance/forecast.ts` with `spendableCash(accounts: Account[]): number` — Σ balances of `checking` and `savings` only. Document why this is not `netWorth()`: investments cannot be spent and a credit balance is debt, so a forecast built on either answers a different question.
-- [ ] Tests: `medianIntervalDays` matches the interval of a known monthly series; `spendableCash` sums depository accounts, ignores investment and credit, and returns 0 for an empty list.
+- [x] In `lib/finance/recurring.ts`, add `medianIntervalDays: number` to `RecurringCandidate` and populate it from the `med` already computed in `detectRecurring`. Purely additive — the bands and all existing fields stay exactly as they are.
+- [x] Create `lib/finance/forecast.ts` with `spendableCash(accounts: Account[]): number` — Σ balances of `checking` and `savings` only. Document why this is not `netWorth()`: investments cannot be spent and a credit balance is debt, so a forecast built on either answers a different question.
+- [x] Tests: `medianIntervalDays` matches the interval of a known monthly series; `spendableCash` sums depository accounts, ignores investment and credit, and returns 0 for an empty list.
 
 **Verify:** every existing `recurring.test.ts` case passes untouched — the field is additive.
 
@@ -53,21 +53,22 @@
 
 Detected by interval, not by frequency band, because biweekly (14d) and semi-monthly (~15d) pay falls through weekly (5–9) and monthly (28–33) alike.
 
-- [ ] Add `IncomeStream { merchantKey, displayName, amount, medianIntervalDays, lastDate, occurrences }` and `detectIncomeStreams(transactions, today): IncomeStream[]`: inflows only (`amount > 0`), `Transfer` excluded, grouped by `normalizeMerchant` (imported from `recurring.ts`, never restated), trailing 13 months.
-- [ ] Keep a group at ≥3 occurrences passing the same regularity guards the expense detector uses — every interval within ±20% of the median, every magnitude within ±30%. Emit the median amount and median interval; **no frequency name**.
-- [ ] Tests: a biweekly paycheck is detected with `medianIntervalDays ≈ 14`; a semi-monthly one is detected; an irregular payer is rejected; a `Transfer` inflow is ignored; a two-occurrence stream is rejected; expenses never appear.
+- [x] Add `IncomeStream { merchantKey, displayName, amount, medianIntervalDays, lastDate, occurrences }` and `detectIncomeStreams(transactions, today): IncomeStream[]`: inflows only (`amount > 0`), `Transfer` excluded, grouped by `normalizeMerchant` (imported from `recurring.ts`, never restated), trailing 13 months.
+- [x] Keep a group at ≥3 occurrences passing the same regularity guards the expense detector uses — every interval within ±20% of the median, every magnitude within ±30%. Emit the median amount and median interval; **no frequency name**.
+- [x] Tests: a biweekly paycheck is detected with `medianIntervalDays ≈ 14`; a semi-monthly one is detected; an irregular payer is rejected; a `Transfer` inflow is ignored; a two-occurrence stream is rejected; expenses never appear.
 
 ---
 
 ## Task 3 — The projection
 
-- [ ] `ForecastEvent { date, label, amount, kind: 'bill' | 'recurring' | 'income' }` and `projectEvents({ bills, candidates, incomeStreams }, horizonDays, today): ForecastEvent[]`, ascending by date:
-  - **Bills** walk `nextDueDate` forward through the horizon. Skip the current occurrence when `isPaid(bill, today)` — that money already moved. Later occurrences in the horizon still project.
+- [x] `ForecastEvent { date, label, amount, kind: 'bill' | 'recurring' | 'income' }` and `projectEvents({ bills, candidates, incomeStreams }, horizonDays, today): ForecastEvent[]`, ascending by date:
+  - **Bills** walk `nextDueDate` forward through the horizon. Skip an occurrence only when `last_paid_date` is on or after it — that money already moved. Later occurrences still project.
+    **Corrected mid-implementation:** this bullet originally said to skip on `isPaid(bill, today)`, and writing the test showed that is wrong. `isPaid` asks whether the cycle that *started* at the most recent due date is settled, so for a bill due the 25th, paying on 06-25 makes it true on 07-19 while the 07-25 charge is still owed — skipping on it would drop a real outflow and flatter the projected low. A regression test pins both directions.
   - **Candidates and income streams** project `lastDate + k × medianIntervalDays` for every k ≥ 1 landing in the horizon — strictly after `today`, so an occurrence that already happened is never re-counted.
   - Bills are negative, income positive; candidates negative (the detector emits magnitudes).
-- [ ] `runningBalance(start: number, events: ForecastEvent[]): ForecastPoint[]` — `{ date, balance }` after each event, starting from the measured balance at `today`.
-- [ ] `forecastLow(points): { balance, date } | null` — earliest point at the minimum balance; null on an empty series.
-- [ ] Tests, one per correctness rule: a paid monthly bill skips this cycle but projects next; a candidate matched to a bill is absent (caller passes `matchCandidates(...).open`); a stream whose `lastDate` is inside the horizon does not double-count that occurrence; a quarterly bill lands once in 60 days and not at all in 30; `forecastLow` finds a negative dip and reports its date, and prefers the earliest of tied minima.
+- [x] `runningBalance(start: number, events: ForecastEvent[]): ForecastPoint[]` — `{ date, balance }` after each event, starting from the measured balance at `today`.
+- [x] `forecastLow(points): { balance, date } | null` — earliest point at the minimum balance; null on an empty series.
+- [x] Tests, one per correctness rule: a bill paid ahead skips that occurrence but projects the next, and a bill whose *previous* occurrence was paid still projects the upcoming one; a candidate matched to a bill is absent (caller passes `matchCandidates(...).open`); a stream whose `lastDate` is inside the horizon does not double-count that occurrence; a quarterly bill lands once in 60 days and not at all in 30; `forecastLow` finds a negative dip and reports its date, and prefers the earliest of tied minima.
 
 **Verify:** `projectEvents` is deterministic for a fixed `today` — no clock reads anywhere in the module.
 
@@ -75,20 +76,20 @@ Detected by interval, not by frequency band, because biweekly (14d) and semi-mon
 
 ## Task 4 — The forecast page
 
-- [ ] `app/(app)/forecast/page.tsx`: fetch accounts, bills, the 13-month transaction window and dismissals (same shapes `app/(app)/bills/page.tsx` already assembles), run `detectRecurring` + `matchCandidates` and pass **`open` only**, then project. No new tables.
-- [ ] `components/forecast/forecast-svg.tsx`: the cash curve, reusing `components/dashboard/chart-geometry.ts` so it shares one coordinate system with the existing charts. Whole line renders in the estimated treatment — it is all projection. A zero line when the curve crosses it.
-- [ ] `components/forecast/event-list.tsx`: every projected debit and credit with date, amount and source. A forecast the user cannot take apart is a number they have no reason to believe.
-- [ ] `components/forecast/forecast-view.tsx`: client island holding the 30/60 horizon control, matching the existing segmented-pill styling.
-- [ ] Headline: projected low and its date; when negative, say so plainly in the `expense` token. State that variable day-to-day spending is excluded, and that card spending only appears via a tracked bill or a detected recurring payment.
-- [ ] Add `/forecast` to `components/nav/nav-links.tsx`.
-- [ ] Tests: the curve is labelled as a projection; an empty event list renders an explanation rather than bare axes (the lesson `NetWorthSvg` already learned).
+- [x] `app/(app)/forecast/page.tsx`: fetch accounts, bills, the 13-month transaction window and dismissals (same shapes `app/(app)/bills/page.tsx` already assembles), run `detectRecurring` + `matchCandidates` and pass **`open` only**, then project. No new tables.
+- [x] `components/forecast/forecast-svg.tsx`: the cash curve, reusing `components/dashboard/chart-geometry.ts` so it shares one coordinate system with the existing charts. Whole line renders in the estimated treatment — it is all projection. A zero line when the curve crosses it.
+- [x] `components/forecast/event-list.tsx`: every projected debit and credit with date, amount and source. A forecast the user cannot take apart is a number they have no reason to believe.
+- [x] `components/forecast/forecast-view.tsx`: client island holding the 30/60 horizon control, matching the existing segmented-pill styling.
+- [x] Headline: projected low and its date; when negative, say so plainly in the `expense` token. State that variable day-to-day spending is excluded, and that card spending only appears via a tracked bill or a detected recurring payment.
+- [x] Add `/forecast` to `components/nav/nav-links.tsx`.
+- [x] Tests: the curve is labelled as a projection; an empty event list renders an explanation rather than bare axes (the lesson `NetWorthSvg` already learned).
 
 ---
 
 ## Task 5 — Dashboard entry point and records
 
-- [ ] `app/(app)/page.tsx`: a projected-low stat linking to `/forecast`, computed from the data the dashboard already fetches plus bills (already fetched). Keep it to one figure — the page owns the detail.
-- [ ] Update `CLAUDE.md` **and** `AGENTS.md` in the same commit (they are the same document — mirror every edit): add the Plan 12 paragraph and the plan-list entry.
+- [x] `app/(app)/page.tsx`: a projected-low stat linking to `/forecast`, computed from the data the dashboard already fetches plus bills (already fetched). Keep it to one figure — the page owns the detail.
+- [x] Update `CLAUDE.md` **and** `AGENTS.md` in the same commit (they are the same document — mirror every edit): add the Plan 12 paragraph and the plan-list entry.
 
 **Manual smoke test:**
 1. `/forecast` shows a curve starting at today's real checking + savings total.
