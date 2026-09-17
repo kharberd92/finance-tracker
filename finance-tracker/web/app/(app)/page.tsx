@@ -10,10 +10,21 @@ import { GoalsWidget } from '@/components/dashboard/goals-widget'
 import { BillsWidget } from '@/components/dashboard/bills-widget'
 import { RecentTransactionsWidget } from '@/components/dashboard/recent-transactions-widget'
 import { FixedVariableCard } from '@/components/dashboard/fixed-variable-card'
+import { ForecastWidget } from '@/components/dashboard/forecast-widget'
 import { NetWorthSparkline } from '@/components/dashboard/net-worth-sparkline'
 import { fetchSplitsFor } from '@/lib/transactions/fetch-splits'
 import { explodeSplits } from '@/lib/finance/split'
-import type { Account, Transaction, Budget, Bill, Goal, AccountBalanceSnapshot } from '@/lib/types'
+import { detectRecurring, matchCandidates } from '@/lib/finance/recurring'
+import {
+  spendableCash,
+  detectIncomeStreams,
+  projectEvents,
+  runningBalance,
+  forecastLow,
+} from '@/lib/finance/forecast'
+import type {
+  Account, Transaction, Budget, Bill, Goal, AccountBalanceSnapshot, RecurringDismissal,
+} from '@/lib/types'
 
 function currentMonth(): string {
   const d = new Date()
@@ -26,14 +37,18 @@ const usd = (n: number) =>
 export default async function DashboardPage() {
   const month = currentMonth()
   const months = trailingMonths(month, 12)
-  const windowStart = `${months[0]}-01`
-  // The backfill writes month-ends across 13 months (scripts/backfill-net-worth.ts),
-  // so the oldest reconstructed point predates the transaction window. Snapshots
-  // get their own, wider start — the two queries feed different charts.
-  const snapshotWindowStart = `${trailingMonths(month, 13)[0]}-01`
+  // 13 months, not 12. Three consumers need the wider span: the recurring and
+  // income detectors both window at 13 months, and the backfill writes
+  // month-end snapshots across the same range (scripts/backfill-net-worth.ts),
+  // so the oldest reconstructed point predates a 12-month window. The cashflow
+  // chart is unaffected — monthlyCashflow filters to the twelve months it is
+  // handed. Costs one extra month of rows and buys a forecast stat that cannot
+  // disagree with /forecast.
+  const windowStart = `${trailingMonths(month, 13)[0]}-01`
 
   const supabase = await createClient()
-  const [accountsRes, txnsRes, budgetsRes, billsRes, goalsRes, snapshotsRes] = await Promise.all([
+  const [accountsRes, txnsRes, budgetsRes, billsRes, goalsRes, dismissalsRes, snapshotsRes] =
+    await Promise.all([
     supabase.from('accounts').select('*'),
     supabase
       .from('transactions')
@@ -43,10 +58,11 @@ export default async function DashboardPage() {
     supabase.from('budgets').select('*').order('category'),
     supabase.from('bills').select('*'),
     supabase.from('goals').select('*').order('name'),
+    supabase.from('recurring_dismissals').select('*'),
     supabase
       .from('account_balance_snapshots')
       .select('*')
-      .gte('as_of', snapshotWindowStart)
+      .gte('as_of', windowStart)
       .order('as_of', { ascending: true }),
   ])
   const accounts = (accountsRes.data ?? []) as Account[]
@@ -54,6 +70,7 @@ export default async function DashboardPage() {
   const budgets = (budgetsRes.data ?? []) as Budget[]
   const bills = (billsRes.data ?? []) as Bill[]
   const goals = (goalsRes.data ?? []) as Goal[]
+  const dismissals = (dismissalsRes.data ?? []) as RecurringDismissal[]
 
   const splits = await fetchSplitsFor(supabase, transactions.map((t) => t.id))
   const exploded = explodeSplits(transactions, splits)
@@ -62,6 +79,22 @@ export default async function DashboardPage() {
   const total = netWorth(accounts)
   const now = new Date()
   const [year, mon] = month.split('-').map(Number)
+
+  // Same inputs and same rules as /forecast, so the two figures agree: `open`
+  // candidates only (a promoted one already counts as its bill, a dismissed
+  // one not at all), and the 30-day horizon the page opens on.
+  const { open: openCandidates } = matchCandidates(
+    detectRecurring(transactions, now),
+    bills,
+    dismissals.map((d) => d.merchant_name),
+  )
+  const forecastEvents = projectEvents(
+    { bills, candidates: openCandidates, incomeStreams: detectIncomeStreams(transactions, now) },
+    30,
+    now,
+  )
+  const startingCash = spendableCash(accounts)
+  const projectedLow = forecastLow(runningBalance(startingCash, forecastEvents))
 
   const snapshots = (snapshotsRes.data ?? []) as AccountBalanceSnapshot[]
   const nwSeries = netWorthSeries(snapshots, accounts)
@@ -112,6 +145,7 @@ export default async function DashboardPage() {
         <GoalsWidget goals={goals} />
         <BillsWidget bills={bills} now={now} />
         <RecentTransactionsWidget transactions={transactions} />
+        <ForecastWidget low={projectedLow} startingCash={startingCash} />
         <FixedVariableCard
           bills={bills}
           transactions={exploded}

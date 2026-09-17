@@ -52,6 +52,17 @@ describe('detectRecurring — cadence classification', () => {
     })
   })
 
+  it('exposes the median interval the forecast projects from', () => {
+    // The bands name a cadence; the forecast needs the raw spacing, because
+    // it steps lastDate forward by it rather than by a frequency name.
+    // Calendar months are uneven (28/31/30/31), so the median of an even
+    // number of intervals lands on a half day. The forecast rounds when it
+    // steps, but the raw value stays unrounded here.
+    const txns = series(['2026-02-15', '2026-03-15', '2026-04-15', '2026-05-15', '2026-06-15'])
+    const [c] = detectRecurring(txns, TODAY)
+    expect(c.medianIntervalDays).toBe(30.5)
+  })
+
   it('detects a weekly charge with day-of-week dueDayGuess', () => {
     // 2026-06-05 is a Friday (day 5)
     const txns = series(['2026-05-22', '2026-05-29', '2026-06-05'], { merchant_name: 'GymPass' })
@@ -134,7 +145,7 @@ describe('matchCandidates', () => {
   function candidate(partial: Partial<RecurringCandidate>): RecurringCandidate {
     return {
       merchantKey: 'netflix.com', displayName: 'Netflix.com', frequency: 'monthly' as const,
-      amount: 15.49, occurrences: 5, lastDate: '2026-06-15',
+      amount: 15.49, occurrences: 5, medianIntervalDays: 30, lastDate: '2026-06-15',
       dueDayGuess: 15, dueMonthGuess: null, categoryGuess: 'Entertainment',
       ...partial,
     }

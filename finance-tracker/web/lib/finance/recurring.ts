@@ -9,6 +9,12 @@ export interface RecurringCandidate {
   frequency: BillFrequency
   amount: number // median magnitude, rounded to cents
   occurrences: number
+  /**
+   * Median spacing between occurrences, in days. The bands above name a
+   * cadence; the forecast needs the raw spacing, because it projects
+   * `lastDate + k × interval` rather than stepping a named frequency.
+   */
+  medianIntervalDays: number
   lastDate: string // ISO 'YYYY-MM-DD' of the most recent occurrence
   dueDayGuess: number // weekly: day-of-week (Sun=0) of lastDate; others: day-of-month
   dueMonthGuess: number | null // month (1–12) of lastDate for quarterly/yearly; null otherwise
@@ -107,6 +113,7 @@ export function detectRecurring(transactions: Transaction[], today: Date): Recur
       frequency: band.frequency,
       amount: toCents(medAmount),
       occurrences: sorted.length,
+      medianIntervalDays: med,
       lastDate: last.date,
       dueDayGuess: band.frequency === 'weekly' ? lastD.getUTCDay() : lastD.getUTCDate(),
       dueMonthGuess:
