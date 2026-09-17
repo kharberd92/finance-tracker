@@ -1,6 +1,6 @@
 'use client'
 
-import type { ForecastPoint } from '@/lib/finance/forecast'
+import { forecastLow, type ForecastPoint } from '@/lib/finance/forecast'
 import {
   VB_W, VB_H, PAD, PLOT_TOP, PLOT_H, LABEL_Y, GRID_FRACTIONS, usd, dayLabel,
 } from '@/components/dashboard/chart-geometry'
@@ -56,7 +56,9 @@ export function ForecastSvg({
   const zeroY = y(0)
   const showZero = min < 0
 
-  const low = points.reduce((a, p) => (p.balance < a.balance ? p : a), points[0])
+  // Via forecastLow, not a second reduce here: the headline and the chart
+  // caption must never be able to disagree about where the low is.
+  const low = forecastLow(points)!
   // One string child only — interleaved expressions break hydration in Next 16.
   const caption = `Projected cash, low of ${usd(low.balance)} on ${dayLabel(low.date)}`
 
