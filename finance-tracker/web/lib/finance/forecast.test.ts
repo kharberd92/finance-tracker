@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { spendableCash, detectIncomeStreams } from './forecast'
-import type { Account, Transaction } from '@/lib/types'
+import {
+  spendableCash,
+  detectIncomeStreams,
+  projectEvents,
+  runningBalance,
+  forecastLow,
+  type IncomeStream,
+} from './forecast'
+import type { RecurringCandidate } from './recurring'
+import type { Account, Bill, Transaction } from '@/lib/types'
 
 function acct(partial: Partial<Account>): Account {
   return {
@@ -132,5 +140,160 @@ describe('detectIncomeStreams', () => {
       'acme payroll',
       'side gig',
     ])
+  })
+})
+
+function bill(partial: Partial<Bill>): Bill {
+  return {
+    id: 'b', user_id: 'u', name: 'Rent', amount: 1800, due_day: 1,
+    due_month: null, frequency: 'monthly', category: 'Bills & Utilities',
+    last_paid_date: null, merchant_name: null, ...partial,
+  }
+}
+
+function stream(partial: Partial<IncomeStream>): IncomeStream {
+  return {
+    merchantKey: 'acme payroll', displayName: 'Acme Payroll', amount: 2400,
+    medianIntervalDays: 14, lastDate: '2026-07-17', occurrences: 6, ...partial,
+  }
+}
+
+function candidate(partial: Partial<RecurringCandidate>): RecurringCandidate {
+  return {
+    merchantKey: 'netflix.com', displayName: 'Netflix.com', frequency: 'monthly',
+    amount: 15.49, occurrences: 5, medianIntervalDays: 30, lastDate: '2026-07-15',
+    dueDayGuess: 15, dueMonthGuess: null, categoryGuess: 'Entertainment', ...partial,
+  }
+}
+
+const NONE = { bills: [], candidates: [], incomeStreams: [] }
+
+describe('projectEvents — bills', () => {
+  it('projects a monthly bill at its real due date', () => {
+    const out = projectEvents({ ...NONE, bills: [bill({ due_day: 1 })] }, 30, TODAY)
+    expect(out).toEqual([
+      { date: '2026-08-01', label: 'Rent', amount: -1800, kind: 'bill' },
+    ])
+  })
+
+  it('skips an occurrence already paid, keeping later ones', () => {
+    // Paid ahead for the 25th: that money already moved, so projecting it
+    // would double-count. August's is still owed and must survive.
+    const paid = bill({ due_day: 25, last_paid_date: '2026-07-25' })
+    const out = projectEvents({ ...NONE, bills: [paid] }, 60, TODAY)
+    expect(out.map((e) => e.date)).toEqual(['2026-08-25'])
+  })
+
+  it('still projects the upcoming charge when only the PREVIOUS one was paid', () => {
+    // The regression this guards: isPaid() is true here (the cycle that began
+    // 06-25 is settled) while 07-25 is very much still owed. Skipping on
+    // isPaid would drop a real outflow and flatter the projected low.
+    const paid = bill({ due_day: 25, last_paid_date: '2026-06-25' })
+    const out = projectEvents({ ...NONE, bills: [paid] }, 30, TODAY)
+    expect(out.map((e) => e.date)).toEqual(['2026-07-25'])
+  })
+
+  it('still projects an unpaid bill due inside the horizon', () => {
+    const out = projectEvents({ ...NONE, bills: [bill({ due_day: 25 })] }, 30, TODAY)
+    expect(out.map((e) => e.date)).toEqual(['2026-07-25'])
+  })
+
+  it('lands a quarterly bill in 60 days but not in 30', () => {
+    const q = bill({ name: 'Water', frequency: 'quarterly', due_month: 3, due_day: 10, amount: 240 })
+    expect(projectEvents({ ...NONE, bills: [q] }, 30, TODAY)).toEqual([])
+    expect(projectEvents({ ...NONE, bills: [q] }, 60, TODAY).map((e) => e.date)).toEqual([
+      '2026-09-10',
+    ])
+  })
+
+  it('drops a quarterly bill with no anchor month rather than guessing one', () => {
+    const broken = bill({ frequency: 'quarterly', due_month: null })
+    expect(projectEvents({ ...NONE, bills: [broken] }, 60, TODAY)).toEqual([])
+  })
+})
+
+describe('projectEvents — streams', () => {
+  it('projects income forward from lastDate by the median interval', () => {
+    const out = projectEvents({ ...NONE, incomeStreams: [stream({ lastDate: '2026-07-17' })] }, 30, TODAY)
+    expect(out).toEqual([
+      { date: '2026-07-31', label: 'Acme Payroll', amount: 2400, kind: 'income' },
+      { date: '2026-08-14', label: 'Acme Payroll', amount: 2400, kind: 'income' },
+    ])
+  })
+
+  it('never re-counts an occurrence that already happened', () => {
+    // lastDate is the most recent ACTUAL charge. Projecting from k=0 would
+    // bill the user twice for money that already left.
+    const out = projectEvents({ ...NONE, incomeStreams: [stream({ lastDate: TODAY.toISOString().slice(0, 10) })] }, 30, TODAY)
+    expect(out.every((e) => e.date > '2026-07-19')).toBe(true)
+  })
+
+  it('projects a detected recurring charge as an outflow', () => {
+    const out = projectEvents({ ...NONE, candidates: [candidate({ lastDate: '2026-07-15' })] }, 30, TODAY)
+    expect(out[0]).toEqual({
+      date: '2026-08-14',
+      label: 'Netflix.com',
+      amount: -15.49,
+      kind: 'recurring',
+    })
+  })
+
+  it('rounds a fractional interval rather than drifting', () => {
+    // Calendar months give medians like 30.5; dates must stay whole days.
+    const out = projectEvents(
+      { ...NONE, candidates: [candidate({ lastDate: '2026-07-01', medianIntervalDays: 30.5 })] },
+      70,
+      TODAY,
+    )
+    expect(out.map((e) => e.date)).toEqual(['2026-08-01', '2026-08-31'])
+  })
+
+  it('ignores a stream with a non-positive interval', () => {
+    const out = projectEvents({ ...NONE, incomeStreams: [stream({ medianIntervalDays: 0 })] }, 30, TODAY)
+    expect(out).toEqual([])
+  })
+})
+
+describe('projectEvents — ordering', () => {
+  it('returns every event ascending by date', () => {
+    const out = projectEvents(
+      {
+        bills: [bill({ due_day: 1 }), bill({ id: 'b2', name: 'Gym', due_day: 28, amount: 40 })],
+        candidates: [candidate({ lastDate: '2026-07-10' })],
+        incomeStreams: [stream({ lastDate: '2026-07-17' })],
+      },
+      30,
+      TODAY,
+    )
+    const dates = out.map((e) => e.date)
+    expect([...dates].sort()).toEqual(dates)
+  })
+})
+
+describe('runningBalance and forecastLow', () => {
+  it('walks the balance through each event', () => {
+    const events = projectEvents({ ...NONE, bills: [bill({ due_day: 1 })] }, 30, TODAY)
+    expect(runningBalance(3000, events)).toEqual([{ date: '2026-08-01', balance: 1200 }])
+  })
+
+  it('finds the low and the date it lands', () => {
+    const points = [
+      { date: '2026-07-25', balance: 900 },
+      { date: '2026-08-01', balance: -150 },
+      { date: '2026-08-14', balance: 2250 },
+    ]
+    expect(forecastLow(points)).toEqual({ balance: -150, date: '2026-08-01' })
+  })
+
+  it('prefers the earliest of tied minima', () => {
+    const points = [
+      { date: '2026-07-25', balance: 100 },
+      { date: '2026-08-01', balance: 100 },
+    ]
+    expect(forecastLow(points)?.date).toBe('2026-07-25')
+  })
+
+  it('returns null for an empty series', () => {
+    expect(forecastLow([])).toBeNull()
   })
 })

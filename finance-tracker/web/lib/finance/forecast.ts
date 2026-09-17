@@ -1,5 +1,6 @@
-import type { Account, Transaction } from '@/lib/types'
-import { normalizeMerchant } from '@/lib/finance/recurring'
+import type { Account, Bill, Transaction } from '@/lib/types'
+import { normalizeMerchant, type RecurringCandidate } from '@/lib/finance/recurring'
+import { nextDueDate } from '@/lib/finance/bill'
 
 /** Account types whose balance is cash the user can actually spend. */
 const SPENDABLE_TYPES: Account['type'][] = ['checking', 'savings']
@@ -124,4 +125,151 @@ export function detectIncomeStreams(transactions: Transaction[], today: Date): I
   }
 
   return out.sort((a, b) => b.amount - a.amount)
+}
+
+/** A dated inflow or outflow the forecast expects. */
+export interface ForecastEvent {
+  date: string // ISO 'YYYY-MM-DD'
+  label: string
+  amount: number // signed: outflows negative, inflows positive
+  kind: 'bill' | 'recurring' | 'income'
+}
+
+export interface ForecastPoint {
+  date: string
+  balance: number
+}
+
+export interface ForecastInputs {
+  bills: Bill[]
+  /** UNTRACKED candidates only — pass `matchCandidates(...).open`. */
+  candidates: RecurringCandidate[]
+  incomeStreams: IncomeStream[]
+}
+
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+const addDays = (isoDate: string, days: number) =>
+  iso(new Date(new Date(`${isoDate}T00:00:00Z`).getTime() + days * MS_PER_DAY))
+
+/**
+ * Occurrence dates for a stream, stepping `lastDate` forward by its median
+ * interval. Only dates strictly after `today` and on or before `end` are
+ * returned.
+ *
+ * Steps as `lastDate + round(k × interval)` rather than by repeatedly adding a
+ * rounded interval: a median like 30.5 would otherwise drift half a day per
+ * occurrence and land a monthly charge on the wrong side of a month boundary
+ * within a year.
+ *
+ * `k` starts at 1, never 0. `lastDate` is the most recent charge that ALREADY
+ * happened — projecting it again would count money that has already moved.
+ */
+function streamDates(
+  lastDate: string,
+  intervalDays: number,
+  todayIso: string,
+  endIso: string,
+): string[] {
+  if (!(intervalDays > 0)) return []
+  const out: string[] = []
+  for (let k = 1; ; k++) {
+    const date = addDays(lastDate, Math.round(k * intervalDays))
+    if (date > endIso) break
+    if (date > todayIso) out.push(date)
+  }
+  return out
+}
+
+/**
+ * Every inflow and outflow the forecast expects between `today` (exclusive)
+ * and `horizonDays` later, ascending by date.
+ *
+ * Three ways the same money could be counted twice, all closed here:
+ *
+ * 1. **A bill occurrence already paid.** An occurrence is skipped when
+ *    `last_paid_date` is on or after it — the money already moved.
+ *    Deliberately NOT `isPaid`, which asks a different question: whether the
+ *    cycle that STARTED at the most recent due date is settled. For a bill
+ *    due the 25th, paying on 06-25 makes `isPaid` true on 07-19 while the
+ *    upcoming 07-25 charge is still owed, so skipping on `isPaid` would drop
+ *    a real outflow and make the projected low look safer than it is.
+ * 2. **A recurring charge that is also a tracked bill.** Not closed here —
+ *    closed by the caller passing `matchCandidates(...).open`, the same
+ *    bucket the bills page shows. Dismissed candidates are excluded too:
+ *    dismissing means "not recurring", and the forecast must respect that.
+ * 3. **An occurrence that already happened.** `streamDates` starts at k = 1
+ *    and drops anything on or before `today`.
+ *
+ * Bills with no anchor month (a quarterly or yearly row missing `due_month`)
+ * produce no events. `nextDueDate` returns null there, and a guessed anchor
+ * would be a fabricated date.
+ */
+export function projectEvents(
+  { bills, candidates, incomeStreams }: ForecastInputs,
+  horizonDays: number,
+  today: Date,
+): ForecastEvent[] {
+  const todayIso = iso(today)
+  const endIso = addDays(todayIso, horizonDays)
+  const events: ForecastEvent[] = []
+
+  for (const b of bills) {
+    let cursor = today
+    while (true) {
+      const due = nextDueDate(b, cursor)
+      if (!due) break
+      const dueIso = iso(due)
+      if (dueIso > endIso) break
+      const settled = b.last_paid_date != null && b.last_paid_date >= dueIso
+      if (!settled) {
+        events.push({ date: dueIso, label: b.name, amount: -b.amount, kind: 'bill' })
+      }
+      cursor = new Date(due.getTime() + MS_PER_DAY)
+    }
+  }
+
+  for (const c of candidates) {
+    for (const date of streamDates(c.lastDate, c.medianIntervalDays, todayIso, endIso)) {
+      events.push({ date, label: c.displayName, amount: -c.amount, kind: 'recurring' })
+    }
+  }
+
+  for (const s of incomeStreams) {
+    for (const date of streamDates(s.lastDate, s.medianIntervalDays, todayIso, endIso)) {
+      events.push({ date, label: s.displayName, amount: s.amount, kind: 'income' })
+    }
+  }
+
+  return events.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+/**
+ * The balance after each event, in order.
+ *
+ * Returns one point per event and deliberately does NOT prepend the starting
+ * balance: `start` is measured, every point here is projected, and keeping
+ * them structurally separate stops the caller from rendering the two alike.
+ *
+ * Expects `events` ascending (as `projectEvents` returns).
+ */
+export function runningBalance(start: number, events: ForecastEvent[]): ForecastPoint[] {
+  let balance = start
+  return events.map((e) => {
+    balance += e.amount
+    return { date: e.date, balance }
+  })
+}
+
+/**
+ * The lowest projected balance and the date it lands on — the question the
+ * forecast exists to answer. Ties resolve to the earliest date, because the
+ * user needs to know when the squeeze starts, not when it ends.
+ *
+ * Returns null when nothing is projected.
+ */
+export function forecastLow(points: ForecastPoint[]): { balance: number; date: string } | null {
+  if (points.length === 0) return null
+  let low = points[0]
+  for (const p of points) if (p.balance < low.balance) low = p
+  return { balance: low.balance, date: low.date }
 }
