@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/budgets', label: 'Budgets' },
   { href: '/goals', label: 'Goals' },
   { href: '/bills', label: 'Bills' },
+  { href: '/forecast', label: 'Forecast' },
   { href: '/accounts', label: 'Accounts' },
 ]
 
